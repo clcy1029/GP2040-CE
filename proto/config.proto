@@ -780,21 +780,21 @@ message Macro
 {
     optional MacroType macroType = 1;
     optional string macroLabel = 2 [(nanopb).max_length = 64];
-    repeated MacroInput macroInputs = 3 [(nanopb).max_count = 30];
+    repeated MacroInput macroInputs = 3 [(nanopb).max_count = 20];
     optional bool enabled = 4;
     optional bool useMacroTriggerButton = 5;
     optional int32 deprecatedMacroTriggerPin = 6 [deprecated = true];
     optional uint32 macroTriggerButton = 7;
     optional bool exclusive = 8 [default = true];
-    optional bool interruptible = 9 [default = true];
-    optional bool showFrames = 10 [default = false];
+    optional bool interruptible = 9 [default = false];
+    optional bool showFrames = 10 [default = true];
 }
 
 message MacroOptions
 {
     optional bool enabled = 1;
     optional int32 deprecatedPin = 2 [deprecated = true];
-    repeated Macro macroList = 3 [(nanopb).max_count = 6];
+    repeated Macro macroList = 3 [(nanopb).max_count = 20];
     optional bool macroBoardLedEnabled = 4;
 }
 

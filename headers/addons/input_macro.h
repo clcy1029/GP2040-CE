@@ -6,7 +6,7 @@
 #include "GamepadEnums.h"
 
 #ifndef INPUT_MACRO_ENABLED
-#define INPUT_MACRO_ENABLED 0
+#define INPUT_MACRO_ENABLED 1
 #endif
 
 #ifndef BOARD_LED_PIN
@@ -25,8 +25,8 @@
 #define INPUT_MACRO_PIN -1
 #endif
 
-#define MAX_MACRO_INPUT_LIMIT 30
-#define MAX_MACRO_LIMIT 6
+#define MAX_MACRO_INPUT_LIMIT 20
+#define MAX_MACRO_LIMIT 20
 #define INPUT_HOLD_US 16666
 
 // Input Macro Module Name

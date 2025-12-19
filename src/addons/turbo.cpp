@@ -19,7 +19,7 @@
 #endif
 
 #ifndef TURBO_LED_STATE_ON
-#define TURBO_LED_STATE_ON 1
+#define TURBO_LED_STATE_ON 0
 #endif
 
 bool TurboInput::available() {

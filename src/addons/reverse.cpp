@@ -13,12 +13,16 @@ void ReverseInput::setup()
 {
     // Setup Reverse Input Button
     mapInputReverse = new GamepadButtonMapping(0);
+    mapReverseExtra1 = new GamepadButtonMapping(0);
+    mapReverseExtra2 = new GamepadButtonMapping(0);
 
     GpioMappingInfo* pinMappings = Storage::getInstance().getProfilePinMappings();
     for (Pin_t pin = 0; pin < (Pin_t)NUM_BANK0_GPIOS; pin++)
     {
         switch (pinMappings[pin].action) {
             case GpioAction::BUTTON_PRESS_INPUT_REVERSE: mapInputReverse->pinMask |= 1 << pin; break;
+            case GpioAction::BUTTON_PRESS_REVERSE_EXTRA_1: mapReverseExtra1->pinMask |= 1 << pin; break;
+            case GpioAction::BUTTON_PRESS_REVERSE_EXTRA_2: mapReverseExtra2->pinMask |= 1 << pin; break;
             default:    break;
         }
     }
@@ -43,28 +47,41 @@ void ReverseInput::setup()
     mapDpadDown  = gamepad->mapDpadDown;
     mapDpadLeft  = gamepad->mapDpadLeft;
     mapDpadRight = gamepad->mapDpadRight;
+    mapButtonB1  = gamepad->mapButtonB1;
+    mapButtonB2  = gamepad->mapButtonB2;
+    mapButtonL2  = gamepad->mapButtonL2;
 
     invertXAxis = gamepad->getOptions().invertXAxis;
     invertYAxis = gamepad->getOptions().invertYAxis;
 
-    state = false;
+    state = false; // if reverse button is pressed
+    stateReverseExtra1 = false; // if reverse extra1 button is pressed
+    stateReverseExtra2 = false; // if reverse extra2 button is pressed
+    stateReverseActive = false; // if any of above buttons is pressed
 }
 
 void ReverseInput::update() {
     Mask_t values = Storage::getInstance().GetGamepad()->debouncedGpio;
 
     state = (values & mapInputReverse->pinMask);
+    stateReverseExtra1 = (values & mapReverseExtra1->pinMask);
+    stateReverseExtra2 = (values & mapReverseExtra2->pinMask);
+
+    // unified reverse state
+    stateReverseActive = state || stateReverseExtra1 || stateReverseExtra2;
 }
 void ReverseInput::reinit() {
     delete mapInputReverse;
+    delete mapReverseExtra1;
+    delete mapReverseExtra2;
     setup();
 }
 
 uint8_t ReverseInput::input(uint32_t valueMask, uint16_t buttonMask, uint16_t buttonMaskReverse, uint8_t action, bool invertAxis) {
-    if (state && action == 2) {
+    if (stateReverseActive && action == 2) {
         return 0;
     }
-    bool invert = (state && action == 1) ? !invertAxis : invertAxis;
+    bool invert = (stateReverseActive && action == 1) ? !invertAxis : invertAxis;
     return (valueMask ? (invert ? buttonMaskReverse : buttonMask) : 0);
 }
 
@@ -81,6 +98,21 @@ void ReverseInput::process()
         | input(gamepad->state.dpad & mapDpadLeft->buttonMask,  mapDpadLeft->buttonMask,    mapDpadRight->buttonMask,   actionLeft,     invertXAxis)
         | input(gamepad->state.dpad & mapDpadRight->buttonMask, mapDpadRight->buttonMask,   mapDpadLeft->buttonMask,    actionRight,    invertXAxis)
     ;
+
+
+    if (state){
+        // Reverse Input Button for Reverse + L2 (sf6 drive reversal)
+        gamepad->state.buttons |= mapButtonL2->buttonMask;
+    }
+    else if (stateReverseExtra1){
+        // Extra Button 1 for B1 button, for 46 lp 
+        gamepad->state.buttons |= mapButtonB1->buttonMask;
+    }
+    else if (stateReverseExtra2){
+        // Extra Button 2 for B2 button , for jmp mp
+        gamepad->state.buttons |= mapButtonB2->buttonMask;
+        gamepad->state.dpad |= mapDpadUp->buttonMask;
+    }
 
     if (pinLED != 0xff) {
         gpio_put(pinLED, !state);

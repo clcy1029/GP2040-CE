@@ -6,7 +6,7 @@
 #include "GamepadEnums.h"
 
 #ifndef REVERSE_ENABLED
-#define REVERSE_ENABLED 0
+#define REVERSE_ENABLED 1
 #endif
 
 #ifndef PIN_REVERSE
@@ -22,15 +22,15 @@
 #endif
 
 #ifndef REVERSE_DOWN_DEFAULT
-#define REVERSE_DOWN_DEFAULT 0
+#define REVERSE_DOWN_DEFAULT 2
 #endif
 
 #ifndef REVERSE_LEFT_DEFAULT
-#define REVERSE_LEFT_DEFAULT 0
+#define REVERSE_LEFT_DEFAULT 1
 #endif
 
 #ifndef REVERSE_RIGHT_DEFUALT
-#define REVERSE_RIGHT_DEFAULT 0
+#define REVERSE_RIGHT_DEFAULT 1
 #endif
 
 // Reverse Module Name
@@ -51,6 +51,12 @@ private:
 
     bool state;
 
+    //extra two buttons' state
+    bool stateReverseExtra1;
+    bool stateReverseExtra2;
+
+    bool stateReverseActive;
+
     uint8_t pinLED;
 
     GamepadButtonMapping *mapDpadUp;
@@ -59,6 +65,15 @@ private:
     GamepadButtonMapping *mapDpadRight;
     GamepadButtonMapping *mapInputReverse;
 
+    //usable buttons
+    GamepadButtonMapping *mapButtonB1;
+    GamepadButtonMapping *mapButtonB2;
+    GamepadButtonMapping *mapButtonL2;
+
+    //add two extra buttons
+    GamepadButtonMapping *mapReverseExtra1;
+    GamepadButtonMapping *mapReverseExtra2;
+    
     bool invertXAxis;
     bool invertYAxis;
 

@@ -30,7 +30,7 @@
 #define GPIO_PIN_17 GpioAction::BUTTON_PRESS_S2     
 #define GPIO_PIN_19 GpioAction::BUTTON_PRESS_B3     
 #define GPIO_PIN_20 GpioAction::BUTTON_PRESS_L3     
-#define GPIO_PIN_21 GpioAction::BUTTON_PRESS_R3     
+#define GPIO_PIN_21 GpioAction::BUTTON_PRESS_R3
 #define GPIO_PIN_28 GpioAction::BUTTON_PRESS_B1     
 
 

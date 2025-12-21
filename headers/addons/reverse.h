@@ -54,6 +54,9 @@ private:
     //extra two buttons' state
     bool stateReverseExtra1;
     bool stateReverseExtra2;
+    bool stateReverseExtra3;
+    bool stateReverseExtra4;
+    bool stateReverseExtra5;
 
     bool stateReverseActive;
 
@@ -69,10 +72,16 @@ private:
     GamepadButtonMapping *mapButtonB1;
     GamepadButtonMapping *mapButtonB2;
     GamepadButtonMapping *mapButtonL2;
+    GamepadButtonMapping *mapButtonB3;
+    GamepadButtonMapping *mapButtonB4;
+    GamepadButtonMapping *mapButtonR1;
 
     //add two extra buttons
     GamepadButtonMapping *mapReverseExtra1;
     GamepadButtonMapping *mapReverseExtra2;
+    GamepadButtonMapping *mapReverseExtra3;
+    GamepadButtonMapping *mapReverseExtra4;
+    GamepadButtonMapping *mapReverseExtra5;
     
     bool invertXAxis;
     bool invertYAxis;

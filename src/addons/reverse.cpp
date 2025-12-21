@@ -15,6 +15,9 @@ void ReverseInput::setup()
     mapInputReverse = new GamepadButtonMapping(0);
     mapReverseExtra1 = new GamepadButtonMapping(0);
     mapReverseExtra2 = new GamepadButtonMapping(0);
+    mapReverseExtra3 = new GamepadButtonMapping(0);
+    mapReverseExtra4 = new GamepadButtonMapping(0);
+    mapReverseExtra5 = new GamepadButtonMapping(0);
 
     GpioMappingInfo* pinMappings = Storage::getInstance().getProfilePinMappings();
     for (Pin_t pin = 0; pin < (Pin_t)NUM_BANK0_GPIOS; pin++)
@@ -23,6 +26,9 @@ void ReverseInput::setup()
             case GpioAction::BUTTON_PRESS_INPUT_REVERSE: mapInputReverse->pinMask |= 1 << pin; break;
             case GpioAction::BUTTON_PRESS_REVERSE_EXTRA_1: mapReverseExtra1->pinMask |= 1 << pin; break;
             case GpioAction::BUTTON_PRESS_REVERSE_EXTRA_2: mapReverseExtra2->pinMask |= 1 << pin; break;
+            case GpioAction::BUTTON_PRESS_REVERSE_EXTRA_3: mapReverseExtra3->pinMask |= 1 << pin; break;
+            case GpioAction::BUTTON_PRESS_REVERSE_EXTRA_4: mapReverseExtra4->pinMask |= 1 << pin; break;
+            case GpioAction::BUTTON_PRESS_REVERSE_EXTRA_5: mapReverseExtra5->pinMask |= 1 << pin; break;
             default:    break;
         }
     }
@@ -50,6 +56,9 @@ void ReverseInput::setup()
     mapButtonB1  = gamepad->mapButtonB1;
     mapButtonB2  = gamepad->mapButtonB2;
     mapButtonL2  = gamepad->mapButtonL2;
+    mapButtonR1  = gamepad->mapButtonR1;
+    mapButtonB3  = gamepad->mapButtonB3;
+    mapButtonB4  = gamepad->mapButtonB4;
 
     invertXAxis = gamepad->getOptions().invertXAxis;
     invertYAxis = gamepad->getOptions().invertYAxis;
@@ -57,6 +66,9 @@ void ReverseInput::setup()
     state = false; // if reverse button is pressed
     stateReverseExtra1 = false; // if reverse extra1 button is pressed
     stateReverseExtra2 = false; // if reverse extra2 button is pressed
+    stateReverseExtra3 = false; // if reverse extra3 button is pressed
+    stateReverseExtra4 = false; // if reverse extra4 button is pressed
+    stateReverseExtra5 = false; // if reverse extra5 button is pressed
     stateReverseActive = false; // if any of above buttons is pressed
 }
 
@@ -66,14 +78,20 @@ void ReverseInput::update() {
     state = (values & mapInputReverse->pinMask);
     stateReverseExtra1 = (values & mapReverseExtra1->pinMask);
     stateReverseExtra2 = (values & mapReverseExtra2->pinMask);
+    stateReverseExtra3 = (values & mapReverseExtra3->pinMask);
+    stateReverseExtra4 = (values & mapReverseExtra4->pinMask);
+    stateReverseExtra5 = (values & mapReverseExtra5->pinMask);
 
     // unified reverse state
-    stateReverseActive = state || stateReverseExtra1 || stateReverseExtra2;
+    stateReverseActive = state || stateReverseExtra1 || stateReverseExtra2 || stateReverseExtra3 || stateReverseExtra4 || stateReverseExtra5;
 }
 void ReverseInput::reinit() {
     delete mapInputReverse;
     delete mapReverseExtra1;
     delete mapReverseExtra2;
+    delete mapReverseExtra3;
+    delete mapReverseExtra4;
+    delete mapReverseExtra5;
     setup();
 }
 
@@ -109,8 +127,23 @@ void ReverseInput::process()
         gamepad->state.buttons |= mapButtonB1->buttonMask;
     }
     else if (stateReverseExtra2){
-        // Extra Button 2 for B2 button , for jmp mp
+        // Extra Button 2 for B1 B2 button , for 46 lp mp
         gamepad->state.buttons |= mapButtonB2->buttonMask;
+        gamepad->state.buttons |= mapButtonB1->buttonMask;
+    }
+    else if (stateReverseExtra3){
+        // Extra Button 3 for R1 button , for 46 hp
+        gamepad->state.buttons |= mapButtonR1->buttonMask;
+    }
+    else if (stateReverseExtra4){
+        // Extra Button 4 for B3 button , for 28 lk 
+        gamepad->state.buttons |= mapButtonB3->buttonMask;
+        gamepad->state.dpad |= mapDpadUp->buttonMask;
+    }
+    else if (stateReverseExtra5){
+        // Extra Button 5 for B3 B4 button , for 28 lk mk 
+        gamepad->state.buttons |= mapButtonB3->buttonMask;
+        gamepad->state.buttons |= mapButtonB4->buttonMask;
         gamepad->state.dpad |= mapDpadUp->buttonMask;
     }
 

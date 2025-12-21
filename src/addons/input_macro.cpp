@@ -21,16 +21,6 @@ bool InputMacro::available() {
             case GpioAction::BUTTON_PRESS_MACRO_8:
             case GpioAction::BUTTON_PRESS_MACRO_9:
             case GpioAction::BUTTON_PRESS_MACRO_10:
-            case GpioAction::BUTTON_PRESS_MACRO_11:
-            case GpioAction::BUTTON_PRESS_MACRO_12:
-            case GpioAction::BUTTON_PRESS_MACRO_13:
-            case GpioAction::BUTTON_PRESS_MACRO_14:
-            case GpioAction::BUTTON_PRESS_MACRO_15:
-            case GpioAction::BUTTON_PRESS_MACRO_16:
-            case GpioAction::BUTTON_PRESS_MACRO_17:
-            case GpioAction::BUTTON_PRESS_MACRO_18:
-            case GpioAction::BUTTON_PRESS_MACRO_19:
-            case GpioAction::BUTTON_PRESS_MACRO_20:
                 return true;
             default:
                 break;
@@ -79,35 +69,7 @@ void InputMacro::setup() {
             case GpioAction::BUTTON_PRESS_MACRO_10:
                 macroPinMasks[9] = 1 << pin;
                 break;
-            case GpioAction::BUTTON_PRESS_MACRO_11:
-                macroPinMasks[10] = 1 << pin;
-                break;
-            case GpioAction::BUTTON_PRESS_MACRO_12:
-                macroPinMasks[11] = 1 << pin;
-                break;
-            case GpioAction::BUTTON_PRESS_MACRO_13:
-                macroPinMasks[12] = 1 << pin;
-                break;
-            case GpioAction::BUTTON_PRESS_MACRO_14:
-                macroPinMasks[13] = 1 << pin;
-                break;
-            case GpioAction::BUTTON_PRESS_MACRO_15:
-                macroPinMasks[14] = 1 << pin;
-                break;
-            case GpioAction::BUTTON_PRESS_MACRO_16:
-                macroPinMasks[15] = 1 << pin;
-                break;
-            case GpioAction::BUTTON_PRESS_MACRO_17:
-                macroPinMasks[16] = 1 << pin;
-                break;
-            case GpioAction::BUTTON_PRESS_MACRO_18:
-                macroPinMasks[17] = 1 << pin;
-                break;
-            case GpioAction::BUTTON_PRESS_MACRO_19:
-                macroPinMasks[18] = 1 << pin;
-                break;
-            case GpioAction::BUTTON_PRESS_MACRO_20:
-                macroPinMasks[19] = 1 << pin;
+            default:
                 break;
         }
     }
@@ -351,36 +313,6 @@ void InputMacro::reinit() {
                 break;
             case GpioAction::BUTTON_PRESS_MACRO_10:
                 macroPinMasks[9] = 1 << pin;
-                break;
-            case GpioAction::BUTTON_PRESS_MACRO_11:
-                macroPinMasks[10] = 1 << pin;
-                break;
-            case GpioAction::BUTTON_PRESS_MACRO_12:
-                macroPinMasks[11] = 1 << pin;
-                break;
-            case GpioAction::BUTTON_PRESS_MACRO_13:
-                macroPinMasks[12] = 1 << pin;
-                break;
-            case GpioAction::BUTTON_PRESS_MACRO_14:
-                macroPinMasks[13] = 1 << pin;
-                break;
-            case GpioAction::BUTTON_PRESS_MACRO_15:
-                macroPinMasks[14] = 1 << pin;
-                break;
-            case GpioAction::BUTTON_PRESS_MACRO_16:
-                macroPinMasks[15] = 1 << pin;
-                break;
-            case GpioAction::BUTTON_PRESS_MACRO_17:
-                macroPinMasks[16] = 1 << pin;
-                break;
-            case GpioAction::BUTTON_PRESS_MACRO_18:
-                macroPinMasks[17] = 1 << pin;
-                break;
-            case GpioAction::BUTTON_PRESS_MACRO_19:
-                macroPinMasks[18] = 1 << pin;
-                break;
-            case GpioAction::BUTTON_PRESS_MACRO_20:
-                macroPinMasks[19] = 1 << pin;
                 break;
             default:
                 break;

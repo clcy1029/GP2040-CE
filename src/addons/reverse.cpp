@@ -141,9 +141,9 @@ void ReverseInput::process()
         gamepad->state.dpad |= mapDpadUp->buttonMask;
     }
     else if (stateReverseExtra5){
-        // Extra Button 5 for B3 B4 button , for 28 lk mk 
+        // Extra Button 5 for B1 B3 button , for air throw
+        gamepad->state.buttons |= mapButtonB1->buttonMask;
         gamepad->state.buttons |= mapButtonB3->buttonMask;
-        gamepad->state.buttons |= mapButtonB4->buttonMask;
         gamepad->state.dpad |= mapDpadUp->buttonMask;
     }
 

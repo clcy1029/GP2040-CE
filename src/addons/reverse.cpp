@@ -127,8 +127,8 @@ void ReverseInput::process()
         gamepad->state.buttons |= mapButtonB1->buttonMask;
     }
     else if (stateReverseExtra2){
-        // Extra Button 2 for B1 B2 button , for 46 lp mp
-        gamepad->state.buttons |= mapButtonB2->buttonMask;
+        // Extra Button 2 for B1 R1 button , for 46 lp hp
+        gamepad->state.buttons |= mapButtonR1->buttonMask;
         gamepad->state.buttons |= mapButtonB1->buttonMask;
     }
     else if (stateReverseExtra3){

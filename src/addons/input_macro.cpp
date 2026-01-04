@@ -89,13 +89,15 @@ void InputMacro::setup() {
 
 
 void InputMacro::reset() {
-    macroPosition = -1;
-    pressedMacro = -1;
+    macroPosition = -1; // this is cur index of which macro (0-9) button is pressed, usally = pressedMacro
+    pressedMacro = -1; // this is the index of which macro (0-9) button is pressed
     isMacroRunning = false;
     macroStartTime = 0;
-    macroInputPosition = 0;
+    macroInputPosition = 0; // this the index for a single macro serial 
     isMacroTriggerHeld = false;
     macroInputHoldTime = INPUT_HOLD_US;
+    deferredButtons = 0;
+    hasDeferredButtons = false;
     if (boardLedEnabled) {
         gpio_put(BOARD_LED_PIN, 0);
     }
@@ -103,7 +105,7 @@ void InputMacro::reset() {
 
 void InputMacro::restart(Macro& macro) {
     macroStartTime = currentMicros;
-    macroInputPosition = 0;
+    macroInputPosition = 0; // this the index for a single macro serial 
     MacroInput& newMacroInput = macro.macroInputs[macroInputPosition];
     uint32_t newMacroInputDuration = newMacroInput.duration + newMacroInput.waitDuration;
     macroInputHoldTime = newMacroInputDuration <= 0 ? INPUT_HOLD_US : newMacroInputDuration;
@@ -143,6 +145,7 @@ void InputMacro::checkMacroAction() {
         macroPosition = pressedMacro; // move our position to that macro
     }
 
+    // check if macro button is newly pressed
     bool newPress = macroInputPressed && (prevMacroInputPressed ^ macroInputPressed);
 
     // Check to see if we should change the current macro (or turn off based on input)
@@ -197,23 +200,50 @@ void InputMacro::runCurrentMacro() {
     Gamepad * gamepad = Storage::getInstance().GetGamepad();
     currentMicros = getMicro();
 
-    if (!macro.interruptible && macro.exclusive) {
-        // Prevent any other inputs from modifying our input (Exclusive)
-        gamepad->state.dpad = 0;
-        gamepad->state.buttons = 0;
-    } else {
+    // ---------- NEW EXCLUSIVE / INTERRUPTIBLE SEMANTICS ----------
+
+    if (true) {
+
         if (macro.useMacroTriggerButton) {
-            // Remove the trigger button from the input state
+            gamepad->state.dpad &= ~(macro.macroTriggerButton >> 16);
+            gamepad->state.buttons &= ~macro.macroTriggerButton;
+        }
+        
+        // exclusive = true, interruptible = false
+        if (!macro.interruptible) {
+            // fully ignore user input
+            gamepad->state.dpad = 0;
+            gamepad->state.buttons = 0;
+        }
+
+        // exclusive = true, interruptible = true
+        else {
+            // ignore dpad
+            gamepad->state.dpad = 0;
+
+            // if user pressed any button, defer them
+            if (gamepad->state.buttons != 0) {
+                deferredButtons |= gamepad->state.buttons;
+                hasDeferredButtons = true;
+            }
+
+            // not let buttons effective
+            gamepad->state.buttons = 0;
+        }
+    }
+    // exclusive = false, keep normal behavior of interruptible
+    else {
+        if (macro.useMacroTriggerButton) {
             gamepad->state.dpad &= ~(macro.macroTriggerButton >> 16);
             gamepad->state.buttons &= ~macro.macroTriggerButton;
         }
         if (macro.interruptible &&
             (gamepad->state.buttons != 0 || gamepad->state.dpad != 0)) {
-            // Macro is interruptible and a user pressed something
             reset();
             return;
         }
     }
+
 
     // Have we elapsed the input hold time?
     if ((currentMicros - macroStartTime) >= macroInputHoldTime) {
@@ -226,7 +256,8 @@ void InputMacro::runCurrentMacro() {
             } else {
                 restart(macro); // On Hold-Repeat or On Toggle = start macro again
             }
-        } else {
+        } 
+        else {
             MacroInput& newMacroInput = macro.macroInputs[macroInputPosition];
             uint32_t newMacroInputDuration = newMacroInput.duration + newMacroInput.waitDuration;
             macroInputHoldTime = newMacroInputDuration <= 0 ? INPUT_HOLD_US : newMacroInputDuration;
@@ -249,6 +280,17 @@ void InputMacro::runCurrentMacro() {
             gamepad->state.dpad |= GAMEPAD_MASK_RIGHT;
         }
         gamepad->state.buttons |= buttonMask;
+        
+        // do a special checking if current chip clock is with the last macro
+        if (macroInputPosition == (macro.macroInputs_count - 1 )) {
+            // if last macro input, and ON PRESS, add deferred buttons on it
+            if ( macro.macroType == ON_PRESS ) {
+                //if deferred buttons exist, apply them now 
+                if (hasDeferredButtons) {
+                    gamepad->state.buttons |= deferredButtons;
+                }
+            }
+        }
 
         // Macro LED is on if we're currently running and inputs are doing something (wait-timers turn it off)
         if (boardLedEnabled) {

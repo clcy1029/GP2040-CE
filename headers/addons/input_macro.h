@@ -60,6 +60,10 @@ private:
     bool prevMacroInputPressed;
     bool boardLedEnabled;
     MacroOptions * inputMacroOptions;
+
+    // Deferred Buttons Support - clcy
+    uint32_t deferredButtons;
+    bool hasDeferredButtons;
 };
 
 #endif  // _InputMacro_H_

@@ -110,6 +110,9 @@ void ReverseInput::process()
 
     Gamepad * gamepad = Storage::getInstance().GetGamepad();
 
+    // temporary raw dpad storage - cliu55
+    uint16_t rawDpad = gamepad->state.dpad;
+
     gamepad->state.dpad = 0
         | input(gamepad->state.dpad & mapDpadUp->buttonMask,    mapDpadUp->buttonMask,      mapDpadDown->buttonMask,    actionUp,       invertYAxis)
         | input(gamepad->state.dpad & mapDpadDown->buttonMask,  mapDpadDown->buttonMask,    mapDpadUp->buttonMask,      actionDown,     invertYAxis)
@@ -132,13 +135,20 @@ void ReverseInput::process()
         gamepad->state.buttons |= mapButtonB1->buttonMask;
     }
     else if (stateReverseExtra3){
-        // Extra Button 3 for R1 button , for 46 hp
-        gamepad->state.buttons |= mapButtonR1->buttonMask;
+        // Extra Button 3 for up b4 button , for J mk
+        gamepad->state.buttons |= mapButtonB4->buttonMask;
+        gamepad->state.dpad |= mapDpadUp->buttonMask;
     }
     else if (stateReverseExtra4){
-        // Extra Button 4 for B3 button , for 28 lk 
-        gamepad->state.buttons |= mapButtonB3->buttonMask;
-        gamepad->state.dpad |= mapDpadUp->buttonMask;
+        // Extra Button 4 for B3 button , for 3 or 1 hp 
+        bool hasHorizontal =
+        (rawDpad & mapDpadLeft->buttonMask) ||
+        (rawDpad & mapDpadRight->buttonMask);
+
+        if (hasHorizontal) {
+            gamepad->state.buttons |= mapButtonR1->buttonMask;
+            gamepad->state.dpad    |= mapDpadDown->buttonMask;
+        }
     }
     else if (stateReverseExtra5){
         // Extra Button 5 for B1 B3 button , for air throw

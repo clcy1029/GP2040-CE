@@ -5,7 +5,7 @@
 #include "gamepad.h"
 
 #ifndef FOCUS_MODE_ENABLED
-#define FOCUS_MODE_ENABLED 0
+#define FOCUS_MODE_ENABLED 1
 #endif
 
 #ifndef FOCUS_MODE_PIN
@@ -29,7 +29,12 @@
 #endif
 
 #ifndef FOCUS_MODE_MACRO_LOCK_ENABLED
-#define FOCUS_MODE_MACRO_LOCK_ENABLED 1
+#define FOCUS_MODE_MACRO_LOCK_ENABLED 0
+#endif
+
+// 1 frame @ 60Hz
+#ifndef INPUT_HOLD_US
+#define INPUT_HOLD_US 16666
 #endif
 
 // FocusMode Module Name
@@ -40,12 +45,24 @@ public:
     virtual bool available();
     virtual void setup();       // FocusMode Setup
     virtual void process();     // FocusMode Process
-    virtual void preprocess() {}
+    virtual void preprocess();
     virtual void postprocess(bool sent) {}
     virtual void reinit() {}
     virtual std::string name() { return FocusModeName; }
 private:
-    uint32_t buttonLockMask;
+    
+    // ===== macro state =====
+    bool     macroRunning = false;
+    uint8_t  macroStep    = 0;
+    uint64_t stepStartTime = 0;
+    bool     branchLeft = false;
+    
+    // ===== deferred buttons =====
+    bool     hasDeferredButtons = false;
+    uint32_t deferredButtons = 0;
+
+    // ===== edge detection =====
+    bool     focusPressedLast = false;
 };
 
 #endif  // _FocusMode_H_

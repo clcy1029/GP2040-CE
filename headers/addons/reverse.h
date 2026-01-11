@@ -40,7 +40,7 @@ class ReverseInput : public GPAddon {
 public:
     virtual bool available();
     virtual void setup();       // Reverse Button Setup
-    virtual void preprocess() {}
+    virtual void preprocess();
     virtual void process();     // Reverse process
     virtual void postprocess(bool sent) {}
     virtual void reinit();
@@ -91,6 +91,11 @@ private:
     uint8_t actionDown;
     uint8_t actionLeft;
     uint8_t actionRight;
+
+    bool R1PressedLast = false;
+    bool newPressR1 = false;
+    bool R1Hold = false;
+    uint32_t R1NewPressAge; // in ticks, max 16666 (~1 second at 16.666ms per tick)
 };
 
 #endif // _Reverse_H_

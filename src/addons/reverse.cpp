@@ -70,7 +70,67 @@ void ReverseInput::setup()
     stateReverseExtra4 = false; // if reverse extra4 button is pressed
     stateReverseExtra5 = false; // if reverse extra5 button is pressed
     stateReverseActive = false; // if any of above buttons is pressed
+
+    R1PressedLast = false;
+    newPressR1 = false;
+    R1Hold = false;
+    R1NewPressAge = 0;
 }
+
+void ReverseInput::preprocess(){
+
+    Gamepad * gamepad = Storage::getInstance().GetGamepad();
+
+    //if R1 is pressed
+    bool R1PressedNow = (gamepad->mapButtonR1->pinMask && (gamepad->debouncedGpio & gamepad->mapButtonR1->pinMask));
+    
+    //if Extra1 is pressed
+    bool Extra1PressedNow   = (mapReverseExtra1->pinMask && (gamepad->debouncedGpio & mapReverseExtra1->pinMask));
+    
+    // if R1 is newly pressed
+    newPressR1 = R1PressedNow && !R1PressedLast;
+
+    // 更新上一 tick 状态
+    R1PressedLast = R1PressedNow;
+
+    // 更新新按 R1 的 age
+    if (newPressR1) {
+        R1NewPressAge = 0;  // 刚新按下，重置计数
+    } else if (R1NewPressAge <= 33332) {
+        R1NewPressAge++;    // 每 tick 自增
+    } else {
+        R1NewPressAge = 0;  // 超过 16666 tick，重置
+    }
+
+    //只有在 Extra1 被按下时才更新 R1Hold 状态
+    if (Extra1PressedNow){
+        if (newPressR1){
+            // R1 is newly pressed
+            newPressR1 = true;
+            R1PressedLast = R1PressedNow; //true
+            R1Hold = true;
+        }
+        else if ((!newPressR1) && R1PressedNow){ 
+            // R1 is being held but not newly pressed
+            newPressR1 = false;
+            R1PressedLast = R1PressedNow; //true
+
+            if (R1NewPressAge < 33332) {
+                R1Hold = true;
+            }
+        }
+        else {
+            // R1 is not holding now
+            R1PressedLast = R1PressedNow; //false
+            newPressR1 = false;
+            R1Hold = false;
+        }
+    }
+    else {
+        // Extra1 is not pressed, reset R1Hold
+        R1Hold = false;
+    }
+};
 
 void ReverseInput::update() {
     Mask_t values = Storage::getInstance().GetGamepad()->debouncedGpio;
@@ -127,7 +187,19 @@ void ReverseInput::process()
     }
     else if (stateReverseExtra1){
         // Extra Button 1 for B1 button, for 46 lp 
+
+        if (R1Hold) {
+             gamepad->state.buttons |= mapButtonR1->buttonMask;
+        }
         gamepad->state.buttons |= mapButtonB1->buttonMask;
+
+        // uint16_t otherButtons =
+        // gamepad->state.buttons & ~mapButtonB1->buttonMask;
+
+        // if (otherButtons == 0) {
+        //     gamepad->state.buttons |= mapButtonB1->buttonMask;
+        // }
+
     }
     else if (stateReverseExtra2){
         // Extra Button 2 for B1 R1 button , for 46 lp hp

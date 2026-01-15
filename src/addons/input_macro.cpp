@@ -101,6 +101,21 @@ void InputMacro::reset() {
     if (boardLedEnabled) {
         gpio_put(BOARD_LED_PIN, 0);
     }
+
+    newPressB1 = false;
+    newPressB2 = false;
+    newPressB3 = false;
+    newPressB4 = false;
+    newPressR1 = false;
+    newPressL1 = false;
+
+    B1PressedLast = false;
+    B2PressedLast = false;
+    B3PressedLast = false;
+    B4PressedLast = false;
+    R1PressedLast = false;
+    L1PressedLast = false;
+
 }
 
 void InputMacro::restart(Macro& macro) {
@@ -182,6 +197,52 @@ void InputMacro::checkMacroAction() {
 }
 
 void InputMacro::runCurrentMacro() {
+
+    Gamepad * gamepad = Storage::getInstance().GetGamepad();
+    
+    //if B1 is pressed
+    bool B1PressedNow = (gamepad->mapButtonB1->pinMask && (gamepad->debouncedGpio & gamepad->mapButtonB1->pinMask));
+    // if B1 is newly pressed
+    newPressB1 = B1PressedNow && !B1PressedLast;
+    // 更新上一 tick 状态
+    B1PressedLast = B1PressedNow;
+
+    //if B2 is pressed
+    bool B2PressedNow = (gamepad->mapButtonB2->pinMask && (gamepad->debouncedGpio & gamepad->mapButtonB2->pinMask));
+    // if B2 is newly pressed
+    newPressB2 = B2PressedNow && !B2PressedLast;
+    // 更新上一 tick 状态
+    B2PressedLast = B2PressedNow;
+
+    //if B1 is pressed
+    bool B3PressedNow = (gamepad->mapButtonB3->pinMask && (gamepad->debouncedGpio & gamepad->mapButtonB3->pinMask));
+    // if B3 is newly pressed
+    newPressB3 = B3PressedNow && !B3PressedLast;
+    // 更新上一 tick 状态
+    B3PressedLast = B3PressedNow;
+
+    //if B4 is pressed
+    bool B4PressedNow = (gamepad->mapButtonB4->pinMask && (gamepad->debouncedGpio & gamepad->mapButtonB4->pinMask));
+    // if B4 is newly pressed
+    newPressB4 = B4PressedNow && !B4PressedLast;
+    // 更新上一 tick 状态
+    B4PressedLast = B4PressedNow;
+
+    //if R1 is pressed
+    bool R1PressedNow = (gamepad->mapButtonR1->pinMask && (gamepad->debouncedGpio & gamepad->mapButtonR1->pinMask));
+    // if R1 is newly pressed
+    newPressR1 = R1PressedNow && !R1PressedLast;
+    // 更新上一 tick 状态
+    R1PressedLast = R1PressedNow;
+
+    //if L1 is pressed
+    bool L1PressedNow = (gamepad->mapButtonL1->pinMask && (gamepad->debouncedGpio & gamepad->mapButtonL1->pinMask));
+    // if L1 is newly pressed
+    newPressL1 = L1PressedNow && !L1PressedLast;
+    // 更新上一 tick 状态
+    L1PressedLast = L1PressedNow;
+    
+
     // Do nothing if macro is not currently running
     if (!isMacroRunning ||
             macroPosition == -1)
@@ -197,10 +258,13 @@ void InputMacro::runCurrentMacro() {
     }
 
     MacroInput& macroInput = macro.macroInputs[macroInputPosition];
-    Gamepad * gamepad = Storage::getInstance().GetGamepad();
+    
     currentMicros = getMicro();
 
     // ---------- NEW EXCLUSIVE / INTERRUPTIBLE SEMANTICS ----------
+
+
+    
 
     if (true) {
 
@@ -220,10 +284,29 @@ void InputMacro::runCurrentMacro() {
         else {
             // ignore dpad
             gamepad->state.dpad = 0;
-
-            // if user pressed any button, defer them
-            if (gamepad->state.buttons != 0) {
-                deferredButtons |= gamepad->state.buttons;
+            
+            if (newPressB1){
+                deferredButtons |= GAMEPAD_MASK_B1;
+                hasDeferredButtons = true;
+            }
+            if (newPressB2){
+                deferredButtons |= GAMEPAD_MASK_B2;
+                hasDeferredButtons = true;
+            }
+            if (newPressB3){
+                deferredButtons |= GAMEPAD_MASK_B3;
+                hasDeferredButtons = true;
+            }
+            if (newPressB4){
+                deferredButtons |= GAMEPAD_MASK_B4;
+                hasDeferredButtons = true;
+            }
+            if (newPressR1){
+                deferredButtons |= GAMEPAD_MASK_R1;
+                hasDeferredButtons = true;
+            }
+            if (newPressL1){
+                deferredButtons |= GAMEPAD_MASK_L1;
                 hasDeferredButtons = true;
             }
 

@@ -64,6 +64,20 @@ private:
     // Deferred Buttons Support - clcy
     uint32_t deferredButtons;
     bool hasDeferredButtons;
+    bool newPressB1;
+    bool newPressB2;
+    bool newPressB3;
+    bool newPressB4;
+    bool newPressR1;
+    bool newPressL1;
+
+    bool B1PressedLast;
+    bool B2PressedLast;
+    bool B3PressedLast;
+    bool B4PressedLast;
+    bool R1PressedLast;
+    bool L1PressedLast;
+
 };
 
 #endif  // _InputMacro_H_

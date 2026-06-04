@@ -91,6 +91,18 @@ private:
     uint8_t actionDown;
     uint8_t actionLeft;
     uint8_t actionRight;
+
+    // One-button super motion (timed sequence, auto-mirror by held direction) - clcy
+    GamepadButtonMapping *mapSuperLP;   // 23626 (or mirror 21424) + LP (B1)
+    GamepadButtonMapping *mapSuperLK;   // 23626 (or mirror 21424) + LK (B3)
+    bool superActive;
+    int  superStep;
+    uint64_t superStepStartTime;
+    bool superMirror;          // true when holding right -> mirror rightward motion to leftward
+    uint16_t superButtonMask;  // gamepad button fired on the final step (B1 or B3)
+    bool prevSuperLP;
+    bool prevSuperLK;
+    bool superDirPending;      // late buffer: pressed before a direction -> side decided when step 0 ends
 };
 
 #endif // _Reverse_H_

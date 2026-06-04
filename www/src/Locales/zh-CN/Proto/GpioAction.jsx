@@ -54,7 +54,7 @@ export default {
 	'ANALOG_DIRECTION_RS_Y_POS': '右摇杆 Y+',
 	'ANALOG_DIRECTION_MOD_LOW': '摇杆倾斜1',
 	'ANALOG_DIRECTION_MOD_HIGH': '摇杆倾斜2',
-	'BUTTON_PRESS_INPUT_REVERSE': '反向输入',
+	'BUTTON_PRESS_INPUT_REVERSE': 'Drive Reversal',
 	'SUSTAIN_FOCUS_MODE': '启用专注模式',
 	'SUSTAIN_4_8_WAY_MODE': '切换4向模式',
 	'MENU_NAVIGATION_UP': '菜单 上',

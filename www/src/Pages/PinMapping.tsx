@@ -88,6 +88,36 @@ const options = Object.entries(BUTTON_ACTIONS)
 		};
 	});
 
+// Surface the fighting-game actions at the top of the "Actions" group: Macro Button,
+// Macro 1-10, then Reverse Input + Reverse Extra 1-5, then everything else in its
+// original (enum) order. - clcy
+const ACTION_ORDER_PRIORITY: string[] = [
+	'BUTTON_PRESS_SUPER_LP',
+	'BUTTON_PRESS_SUPER_LK',
+	'BUTTON_PRESS_MACRO',
+	'BUTTON_PRESS_MACRO_1',
+	'BUTTON_PRESS_MACRO_2',
+	'BUTTON_PRESS_MACRO_3',
+	'BUTTON_PRESS_MACRO_4',
+	'BUTTON_PRESS_MACRO_5',
+	'BUTTON_PRESS_MACRO_6',
+	'BUTTON_PRESS_MACRO_7',
+	'BUTTON_PRESS_MACRO_8',
+	'BUTTON_PRESS_MACRO_9',
+	'BUTTON_PRESS_MACRO_10',
+	'BUTTON_PRESS_INPUT_REVERSE',
+	'BUTTON_PRESS_REVERSE_EXTRA_1',
+	'BUTTON_PRESS_REVERSE_EXTRA_2',
+	'BUTTON_PRESS_REVERSE_EXTRA_3',
+	'BUTTON_PRESS_REVERSE_EXTRA_4',
+	'BUTTON_PRESS_REVERSE_EXTRA_5',
+];
+
+const actionSortKey = (label: string) => {
+	const index = ACTION_ORDER_PRIORITY.indexOf(label);
+	return index === -1 ? ACTION_ORDER_PRIORITY.length : index;
+};
+
 const groupedOptions = [
 	{
 		label: 'Buttons',
@@ -95,7 +125,11 @@ const groupedOptions = [
 	},
 	{
 		label: 'Actions',
-		options: options.filter(({ type }) => type === 'action'),
+		// `.filter` returns a fresh array, so sorting it won't mutate `options`.
+		// Array.sort is stable, so non-prioritized actions keep their original order.
+		options: options
+			.filter(({ type }) => type === 'action')
+			.sort((a, b) => actionSortKey(a.label) - actionSortKey(b.label)),
 	},
 ];
 

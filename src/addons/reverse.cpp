@@ -1,8 +1,29 @@
 #include "addons/reverse.h"
 #include "storagemanager.h"
 #include "GamepadEnums.h"
+#include "GamepadState.h"
+#include "gamepad.h"
 #include "helper.h"
 #include "config.pb.h"
+
+// ---- One-button super motion (timed, auto-mirror by held direction) - clcy ----
+// Canonical motion is authored for "character on the LEFT side" (forward = right): 2 3 6 2 6.
+// When the player is instead holding right, LEFT/RIGHT are swapped to produce the mirror 2 1 4 2 4.
+// Timing: one fighting-game frame = 1/60s ~= 16666 us. The input loop runs FAR faster than 60Hz,
+// so each step is held by the microsecond wall-clock (getMicro()), not by loop ticks.
+#define SUPER_FRAME_US    16666
+#define SUPER_STEP_FRAMES 2
+#define SUPER_STEP_US     (SUPER_FRAME_US * SUPER_STEP_FRAMES)
+
+struct SuperStep { uint16_t dpad; bool fireButton; };
+static const SuperStep SUPER_STEPS[] = {
+    { GAMEPAD_MASK_DOWN,                      false }, // 2  down
+    { GAMEPAD_MASK_DOWN | GAMEPAD_MASK_RIGHT, false }, // 3  down-forward
+    { GAMEPAD_MASK_RIGHT,                     false }, // 6  forward
+    { GAMEPAD_MASK_DOWN,                      false }, // 2  down
+    { GAMEPAD_MASK_RIGHT,                     true  }, // 6  forward + button
+};
+static const int SUPER_STEP_COUNT = (int)(sizeof(SUPER_STEPS) / sizeof(SUPER_STEPS[0]));
 
 bool ReverseInput::available() {
     const ReverseOptions& options = Storage::getInstance().getAddonOptions().reverseOptions;
@@ -18,6 +39,8 @@ void ReverseInput::setup()
     mapReverseExtra3 = new GamepadButtonMapping(0);
     mapReverseExtra4 = new GamepadButtonMapping(0);
     mapReverseExtra5 = new GamepadButtonMapping(0);
+    mapSuperLP = new GamepadButtonMapping(0);
+    mapSuperLK = new GamepadButtonMapping(0);
 
     GpioMappingInfo* pinMappings = Storage::getInstance().getProfilePinMappings();
     for (Pin_t pin = 0; pin < (Pin_t)NUM_BANK0_GPIOS; pin++)
@@ -29,6 +52,8 @@ void ReverseInput::setup()
             case GpioAction::BUTTON_PRESS_REVERSE_EXTRA_3: mapReverseExtra3->pinMask |= 1 << pin; break;
             case GpioAction::BUTTON_PRESS_REVERSE_EXTRA_4: mapReverseExtra4->pinMask |= 1 << pin; break;
             case GpioAction::BUTTON_PRESS_REVERSE_EXTRA_5: mapReverseExtra5->pinMask |= 1 << pin; break;
+            case GpioAction::BUTTON_PRESS_SUPER_LP: mapSuperLP->pinMask |= 1 << pin; break;
+            case GpioAction::BUTTON_PRESS_SUPER_LK: mapSuperLK->pinMask |= 1 << pin; break;
             default:    break;
         }
     }
@@ -70,6 +95,16 @@ void ReverseInput::setup()
     stateReverseExtra4 = false; // if reverse extra4 button is pressed
     stateReverseExtra5 = false; // if reverse extra5 button is pressed
     stateReverseActive = false; // if any of above buttons is pressed
+
+    // super motion state - clcy
+    superActive = false;
+    superStep = 0;
+    superStepStartTime = 0;
+    superMirror = false;
+    superButtonMask = 0;
+    prevSuperLP = false;
+    prevSuperLK = false;
+    superDirPending = false;
 }
 
 void ReverseInput::update() {
@@ -92,6 +127,8 @@ void ReverseInput::reinit() {
     delete mapReverseExtra3;
     delete mapReverseExtra4;
     delete mapReverseExtra5;
+    delete mapSuperLP;
+    delete mapSuperLK;
     setup();
 }
 
@@ -155,6 +192,79 @@ void ReverseInput::process()
         gamepad->state.buttons |= mapButtonB1->buttonMask;
         gamepad->state.buttons |= mapButtonB3->buttonMask;
         gamepad->state.dpad |= mapDpadUp->buttonMask;
+    }
+
+    // ---- One-button super motion (timed sequence, auto-mirror by held direction) - clcy ----
+    // Hold 4/back (left side) + Super button -> 2 3 6 2 6 + button (motion goes right).
+    // Hold 6/back (right side) + Super button -> mirror 2 1 4 2 4 + button (motion goes left).
+    // Late buffer: if pressed with NO horizontal held, the first "2" still plays; the side is
+    // then sampled when that step ends (so you can press the button a hair before the stick).
+    {
+        Mask_t superGpio = gamepad->debouncedGpio;
+        bool superLPpressed = mapSuperLP->pinMask && (superGpio & mapSuperLP->pinMask);
+        bool superLKpressed = mapSuperLK->pinMask && (superGpio & mapSuperLK->pinMask);
+        uint64_t nowUs = getMicro();
+
+        if (!superActive) {
+            bool risingLP = superLPpressed && !prevSuperLP;
+            bool risingLK = superLKpressed && !prevSuperLK;
+            if (risingLP || risingLK) {
+                superActive = true;
+                superStep = 0;
+                superStepStartTime = nowUs;
+                superButtonMask = risingLP ? mapButtonB1->buttonMask : mapButtonB3->buttonMask;
+                bool heldLeft  = rawDpad & GAMEPAD_MASK_LEFT;
+                bool heldRight = rawDpad & GAMEPAD_MASK_RIGHT;
+                if (heldLeft || heldRight) {
+                    superMirror = heldRight;            // direction known at press -> commit now
+                    superDirPending = false;
+                } else {
+                    superMirror = false;                // tentative; step 0 ("down") is side-agnostic
+                    superDirPending = true;             // decide when the first step ends (late buffer)
+                }
+            }
+        }
+
+        if (superActive) {
+            if ((nowUs - superStepStartTime) >= SUPER_STEP_US) {
+                superStep++;
+                superStepStartTime = nowUs;
+
+                // Late buffer resolves at the end of the first "2": sample the stick now to
+                // pick forward (正摇) vs mirror (反摇). Still nothing held -> cancel the rest.
+                if (superDirPending && superStep == 1) {
+                    bool heldLeft  = rawDpad & GAMEPAD_MASK_LEFT;
+                    bool heldRight = rawDpad & GAMEPAD_MASK_RIGHT;
+                    if (heldLeft || heldRight) {
+                        superMirror = heldRight;
+                        superDirPending = false;
+                    } else {
+                        superActive = false;            // no direction even after the buffer
+                    }
+                }
+
+                if (superStep >= SUPER_STEP_COUNT) {
+                    superActive = false;
+                }
+            }
+            if (superActive) {
+                const SuperStep& st = SUPER_STEPS[superStep];
+                uint16_t outDpad = 0;
+                if (st.dpad & GAMEPAD_MASK_DOWN) outDpad |= GAMEPAD_MASK_DOWN;
+                bool stepLeft  = st.dpad & GAMEPAD_MASK_LEFT;
+                bool stepRight = st.dpad & GAMEPAD_MASK_RIGHT;
+                if (superMirror) { bool tmp = stepLeft; stepLeft = stepRight; stepRight = tmp; }
+                if (stepLeft)  outDpad |= GAMEPAD_MASK_LEFT;
+                if (stepRight) outDpad |= GAMEPAD_MASK_RIGHT;
+                gamepad->state.dpad = outDpad;          // exclusive: the motion owns the stick
+                if (st.fireButton) {
+                    gamepad->state.buttons |= superButtonMask;
+                }
+            }
+        }
+
+        prevSuperLP = superLPpressed;
+        prevSuperLK = superLKpressed;
     }
 
     if (pinLED != 0xff) {

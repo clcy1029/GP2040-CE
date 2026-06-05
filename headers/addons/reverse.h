@@ -36,6 +36,9 @@
 // Reverse Module Name
 #define ReverseName "Input Reverse"
 
+// Max number of table-driven hardcoded-motion buttons (see MOTION_DEFS in reverse.cpp) - clcy
+#define REVERSE_MOTION_MAX 32
+
 class ReverseInput : public GPAddon {
 public:
     virtual bool available();
@@ -75,6 +78,7 @@ private:
     GamepadButtonMapping *mapButtonB3;
     GamepadButtonMapping *mapButtonB4;
     GamepadButtonMapping *mapButtonR1;
+    GamepadButtonMapping *mapButtonL1;
 
     //add two extra buttons
     GamepadButtonMapping *mapReverseExtra1;
@@ -99,10 +103,27 @@ private:
     int  superStep;
     uint64_t superStepStartTime;
     bool superMirror;          // true when holding right -> mirror rightward motion to leftward
-    uint16_t superButtonMask;  // gamepad button fired on the final step (B1 or B3)
+    uint16_t superAttackMask;     // OR of the 6 attack buttons (LP/MP/HP/LK/MK/HK)
+    uint16_t superEnderDefault;   // ender if no attack held (B1 for Super-LP, B3 for Super-LK)
+    uint16_t superEnderMask;      // attack(s) held during the buffer -> overrides the default ender
     bool prevSuperLP;
     bool prevSuperLK;
     bool superDirPending;      // late buffer: pressed before a direction -> side decided when step 0 ends
+    uint64_t superStepDurationUs;  // current step's hold time (randomized 1-2 frames)
+    uint32_t superRng;             // xorshift PRNG state for the per-step length randomness
+    bool superDivert;              // a kick pressed during the opening -> morph the 23626 super into 21346246+kick
+
+    // General hardcoded-motion buttons (236/214/623*/21346*/22*/28*/2HP): fixed sequences, no
+    // mirror/gate, play to completion; a pressed attack overrides the per-motion default ender,
+    // fired on the last step. Table-driven (see MOTION_DEFS in reverse.cpp). - clcy
+    uint32_t motionPinMask[REVERSE_MOTION_MAX];
+    bool     motionPrev[REVERSE_MOTION_MAX];
+    bool     motionActive;
+    int      motionWhich;          // index into MOTION_DEFS
+    int      motionStep;
+    uint64_t motionStepStartTime;
+    uint64_t motionStepDurationUs;
+    uint16_t motionEnderMask;      // attacks captured during the sequence
 };
 
 #endif // _Reverse_H_

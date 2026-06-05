@@ -64,14 +64,16 @@ What each step does:
 
 ## 1. Build (编译) — simple flow, same as your other Mac
 
-```bash
+```
 cd /Users/chang/Explore/GP2040-CE
+export PICO_SDK_PATH=/Users/chang/Explore/GP2040-CE/pico-sdk
 export GP2040_BOARDCONFIG=PicoClcy
-
+rm -rf build
 mkdir build
 cd build
 cmake ..
 make -j12
+
 ```
 
 (`make -j12` uses all 12 cores — much faster. Plain `make` works too, just slower.)

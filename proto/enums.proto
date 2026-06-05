@@ -372,6 +372,25 @@ enum GpioAction
     BUTTON_PRESS_REVERSE_EXTRA_5 = 139;
     BUTTON_PRESS_SUPER_LP        = 140;
     BUTTON_PRESS_SUPER_LK        = 141;
+    BUTTON_PRESS_QCR_236         = 142;
+    BUTTON_PRESS_QCR_214         = 143;
+    BUTTON_PRESS_623_LP          = 144;
+    BUTTON_PRESS_623_HP          = 145;
+    BUTTON_PRESS_623_LPMP        = 146;
+    BUTTON_PRESS_623_LK          = 147;
+    BUTTON_PRESS_623_HK          = 148;
+    BUTTON_PRESS_623_LKMK        = 149;
+    BUTTON_PRESS_21346_LK        = 150;
+    BUTTON_PRESS_21346_HK        = 151;
+    BUTTON_PRESS_21346_LKMK      = 152;
+    BUTTON_PRESS_22_LKMK         = 153;
+    BUTTON_PRESS_22              = 154;
+    BUTTON_PRESS_28_HK           = 155;
+    BUTTON_PRESS_28_LK           = 156;
+    BUTTON_PRESS_28_LKMK         = 157;
+    BUTTON_PRESS_2_HP            = 158;
+    BUTTON_PRESS_21346246_LK     = 159;
+    BUTTON_PRESS_21346246_LP     = 160;
 }
 
 enum GpioDirection

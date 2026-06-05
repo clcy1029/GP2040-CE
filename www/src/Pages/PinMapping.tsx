@@ -94,6 +94,25 @@ const options = Object.entries(BUTTON_ACTIONS)
 const ACTION_ORDER_PRIORITY: string[] = [
 	'BUTTON_PRESS_SUPER_LP',
 	'BUTTON_PRESS_SUPER_LK',
+	'BUTTON_PRESS_QCR_236',
+	'BUTTON_PRESS_QCR_214',
+	'BUTTON_PRESS_623_LP',
+	'BUTTON_PRESS_623_HP',
+	'BUTTON_PRESS_623_LPMP',
+	'BUTTON_PRESS_623_LK',
+	'BUTTON_PRESS_623_HK',
+	'BUTTON_PRESS_623_LKMK',
+	'BUTTON_PRESS_21346_LK',
+	'BUTTON_PRESS_21346_HK',
+	'BUTTON_PRESS_21346_LKMK',
+	'BUTTON_PRESS_21346246_LK',
+	'BUTTON_PRESS_21346246_LP',
+	'BUTTON_PRESS_22_LKMK',
+	'BUTTON_PRESS_22',
+	'BUTTON_PRESS_28_HK',
+	'BUTTON_PRESS_28_LK',
+	'BUTTON_PRESS_28_LKMK',
+	'BUTTON_PRESS_2_HP',
 	'BUTTON_PRESS_MACRO',
 	'BUTTON_PRESS_MACRO_1',
 	'BUTTON_PRESS_MACRO_2',
@@ -101,10 +120,6 @@ const ACTION_ORDER_PRIORITY: string[] = [
 	'BUTTON_PRESS_MACRO_4',
 	'BUTTON_PRESS_MACRO_5',
 	'BUTTON_PRESS_MACRO_6',
-	'BUTTON_PRESS_MACRO_7',
-	'BUTTON_PRESS_MACRO_8',
-	'BUTTON_PRESS_MACRO_9',
-	'BUTTON_PRESS_MACRO_10',
 	'BUTTON_PRESS_INPUT_REVERSE',
 	'BUTTON_PRESS_REVERSE_EXTRA_1',
 	'BUTTON_PRESS_REVERSE_EXTRA_2',
@@ -125,10 +140,11 @@ const groupedOptions = [
 	},
 	{
 		label: 'Actions',
-		// `.filter` returns a fresh array, so sorting it won't mutate `options`.
-		// Array.sort is stable, so non-prioritized actions keep their original order.
+		// Only show our curated actions: the recently-built motion/super/reverse buttons + macros.
+		// ACTION_ORDER_PRIORITY doubles as the allowlist, so the dropdown isn't cluttered with the
+		// built-in guitar/drum/wheel/menu/SOCD/etc. actions. (Sorted by that same priority.)
 		options: options
-			.filter(({ type }) => type === 'action')
+			.filter((o) => o.type === 'action' && ACTION_ORDER_PRIORITY.includes(o.label))
 			.sort((a, b) => actionSortKey(a.label) - actionSortKey(b.label)),
 	},
 ];

@@ -89,5 +89,34 @@
 #define BUTTON_LAYOUT BUTTON_LAYOUT_STICKLESS
 #define BUTTON_LAYOUT_RIGHT BUTTON_LAYOUT_STICKLESSB
 
+// Profile-load hotkeys: S1 + S2 + (B1/B2/B3/B4/R1/R2) -> Load Profile 1-6 - clcy
+// button masks: S1=256, S2=512 (S1|S2=768); B1=1, B2=2, B3=4, B4=8, R1=32, R2=128
+// actions: LOAD_PROFILE_1..6 = 15,16,17,18,71,72
+// NOTE: these are DEFAULTS -> only apply to a fresh config (after a nuke / Reset Settings).
+#define HOTKEY_02_AUX_MASK     0
+#define HOTKEY_02_BUTTONS_MASK 769   // S1 | S2 | B1
+#define HOTKEY_02_DPAD_MASK    0
+#define HOTKEY_02_ACTION       15    // Load Profile 1
+#define HOTKEY_03_AUX_MASK     0
+#define HOTKEY_03_BUTTONS_MASK 770   // S1 | S2 | B2
+#define HOTKEY_03_DPAD_MASK    0
+#define HOTKEY_03_ACTION       16    // Load Profile 2
+#define HOTKEY_04_AUX_MASK     0
+#define HOTKEY_04_BUTTONS_MASK 772   // S1 | S2 | B3
+#define HOTKEY_04_DPAD_MASK    0
+#define HOTKEY_04_ACTION       17    // Load Profile 3
+#define HOTKEY_05_AUX_MASK     0
+#define HOTKEY_05_BUTTONS_MASK 776   // S1 | S2 | B4
+#define HOTKEY_05_DPAD_MASK    0
+#define HOTKEY_05_ACTION       18    // Load Profile 4
+#define HOTKEY_06_AUX_MASK     0
+#define HOTKEY_06_BUTTONS_MASK 800   // S1 | S2 | R1
+#define HOTKEY_06_DPAD_MASK    0
+#define HOTKEY_06_ACTION       71    // Load Profile 5
+#define HOTKEY_07_AUX_MASK     0
+#define HOTKEY_07_BUTTONS_MASK 896   // S1 | S2 | R2
+#define HOTKEY_07_DPAD_MASK    0
+#define HOTKEY_07_ACTION       72    // Load Profile 6
+
 
 #endif

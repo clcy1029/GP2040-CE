@@ -111,7 +111,9 @@ private:
     bool superDirPending;      // late buffer: pressed before a direction -> side decided when step 0 ends
     uint64_t superStepDurationUs;  // current step's hold time (randomized 1-2 frames)
     uint32_t superRng;             // xorshift PRNG state for the per-step length randomness
-    bool superDivert;              // a kick pressed during the opening -> morph the 23626 super into 21346246+kick
+    bool superDivert;              // (legacy — unused by the current super)
+    int  superTailType;            // super tail: 0=opening, 1=246 (divert), 2=26 (held 4), 3=24 (held 6)
+    uint16_t superDirLatch;        // super: ←/→ latched during the 21346 opening
 
     // General hardcoded-motion buttons (236/214/623*/21346*/22*/28*/2HP): fixed sequences, no
     // mirror/gate, play to completion; a pressed attack overrides the per-motion default ender,

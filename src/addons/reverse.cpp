@@ -6,24 +6,40 @@
 #include "helper.h"
 #include "config.pb.h"
 
-// ---- One-button super motion (timed, auto-mirror by held direction) - clcy ----
-// Canonical motion is authored for "character on the LEFT side" (forward = right): 2 3 6 2 6.
-// When the player is instead holding right, LEFT/RIGHT are swapped to produce the mirror 2 1 4 2 4.
 // Timing: one fighting-game frame = 1/60s ~= 16666 us. The input loop runs FAR faster than 60Hz,
-// so each step is held by the microsecond wall-clock (getMicro()), not by loop ticks.
+// so each motion step is held by the microsecond wall-clock (getMicro()), not by loop ticks.
 #define SUPER_FRAME_US        16666
 #define SUPER_STEP_FRAMES_MIN 1
 #define SUPER_STEP_FRAMES_MAX 2
 
-struct SuperStep { uint16_t dpad; bool fireButton; };
-static const SuperStep SUPER_STEPS[] = {
-    { GAMEPAD_MASK_DOWN,                      false }, // 2  down
-    { GAMEPAD_MASK_DOWN | GAMEPAD_MASK_RIGHT, false }, // 3  down-forward
-    { GAMEPAD_MASK_RIGHT,                     false }, // 6  forward
-    { GAMEPAD_MASK_DOWN,                      false }, // 2  down
-    { GAMEPAD_MASK_RIGHT,                     true  }, // 6  forward + button
+// "Reverse 23626 LP/LK" super = shared opening 21346 + a tail chosen at the end of the opening.
+// Steps are absolute dpad bits (no mirror); see the super block in process() for the full logic. - clcy
+static const uint16_t SUPER_OPEN[]  = {                       // 21346 (shared opening)
+    GAMEPAD_MASK_DOWN,                       // 2
+    GAMEPAD_MASK_DOWN | GAMEPAD_MASK_LEFT,   // 1
+    GAMEPAD_MASK_DOWN | GAMEPAD_MASK_RIGHT,  // 3
+    GAMEPAD_MASK_LEFT,                       // 4
+    GAMEPAD_MASK_RIGHT,                      // 6
 };
-static const int SUPER_STEP_COUNT = (int)(sizeof(SUPER_STEPS) / sizeof(SUPER_STEPS[0]));
+static const int SUPER_OPEN_COUNT = (int)(sizeof(SUPER_OPEN) / sizeof(SUPER_OPEN[0]));
+static const uint16_t SUPER_T_DIV[] = { GAMEPAD_MASK_DOWN, GAMEPAD_MASK_LEFT, GAMEPAD_MASK_RIGHT }; // 246 -> 21346246 (divert)
+static const uint16_t SUPER_T_FWD[] = { GAMEPAD_MASK_DOWN, GAMEPAD_MASK_RIGHT };                    // 26  -> 2134626 (held 4)
+static const uint16_t SUPER_T_BCK[] = { GAMEPAD_MASK_DOWN, GAMEPAD_MASK_LEFT };                     // 24  -> 2134624 (held 6)
+
+// Current step of the super (opening, then the chosen tail: 1=246, 2=26, 3=24). False past the end.
+static bool superSeq(int step, int tailType, uint16_t& dpad, bool& isLast) {
+    if (step < SUPER_OPEN_COUNT) { dpad = SUPER_OPEN[step]; isLast = false; return true; }
+    int ti = step - SUPER_OPEN_COUNT;
+    const uint16_t* tail; int n;
+    switch (tailType) {
+        case 1: tail = SUPER_T_DIV; n = 3; break;
+        case 2: tail = SUPER_T_FWD; n = 2; break;
+        case 3: tail = SUPER_T_BCK; n = 2; break;
+        default: return false;
+    }
+    if (ti >= n) return false;
+    dpad = tail[ti]; isLast = (ti == n - 1); return true;
+}
 
 // Random step duration in microseconds: uniform [minF, maxF] frames (1 frame = SUPER_FRAME_US).
 // Tiny xorshift32 PRNG, lazily seeded from the microsecond clock so the pattern varies per run. - clcy
@@ -66,7 +82,6 @@ static const MotionStep ST_623[]   = { {D_1,1,2}, {D_3,1,2}, {D_1,1,2}, {D_3,1,2
 static const MotionStep ST_623HP[] = { {D_1,1,1}, {D_3,1,1}, {D_1,1,1}, {D_3,1,1}, {D_1,1,3} }; // steps 1f, last 1-3f
 static const MotionStep ST_21346[] = { {D_2,1,2}, {D_1,1,2}, {D_3,1,2}, {D_4,1,2}, {D_6,2,3} };
 static const MotionStep ST_21346246[] = { {D_2,1,1},{D_1,1,1},{D_3,1,1},{D_4,1,1},{D_6,1,1},{D_2,1,1},{D_4,1,1},{D_6,1,1} }; // all 1 frame
-static const int SUPER_DIVERT_COUNT = (int)(sizeof(ST_21346246) / sizeof(ST_21346246[0])); // super kick-divert plays ST_21346246
 static const MotionStep ST_22[]    = { {D_N,1,2}, {D_2,1,2}, {D_N,1,2}, {D_2,2,3} };
 static const MotionStep ST_28[]    = { {D_2,1,1}, {D_8,2,3} };   // 2 is 1 frame, then 8 + attack (2-3f)
 static const MotionStep ST_2HP[]   = { {D_2,4,4} };              // single step, 4 frames
@@ -182,6 +197,8 @@ void ReverseInput::setup()
     superStepDurationUs = 0;
     superRng = 0;
     superDivert = false;
+    superTailType = 0;
+    superDirLatch = 0;
 
     // General motion-button state + pin masks (scan every motion action) - clcy
     motionActive = false;
@@ -291,13 +308,13 @@ void ReverseInput::process()
         gamepad->state.dpad |= mapDpadUp->buttonMask;
     }
 
-    // ---- "Reverse 23626 LP/LK" super (timed, auto-mirror, cross-category divert) - clcy ----
-    // Press -> opening "2" plays. During that buffer we sample direction (4/6) AND attacks. An attack
-    // of the OPPOSITE category to the button diverts (HIGHEST priority, any direction incl. neutral):
-    //   Reverse-LP + a KICK  -> 21346246 LK ;   Reverse-LK + a PUNCH -> 21346246 LP
-    //   (the remaining 1 3 4 6 2 4 6, 1 frame each, last 2 frames, no mirror).
-    // Otherwise normal super: direction 4 -> 2 3 6 2 6 + ender; 6 -> mirror 2 1 4 2 4; no direction -> cancel.
-    // Held attacks are suppressed during the motion so they don't leak as a stray normal.
+    // ---- "Reverse 23626 LP/LK" super: shared 21346 opening + a tail chosen at the end - clcy ----
+    // Press -> play the shared opening 21346 (2,1,3,4,6). From the press, while it runs, watch for any
+    // attack (k or p) and a held direction (4/6). When the opening's "6" finishes, pick the tail (this
+    // reuses the already-played 21346, no restart):
+    //   any attack  -> +246 = 21346246, ender LP+MK (uniform);  hold 4 -> +26 = 2134626;  hold 6 -> +24 = 2134624
+    //   (the 26/24 supers end in the button's LK/LP);  no attack + no direction -> stop after 21346.
+    // Every step is 1 frame, the final attack step 2 frames. Held attacks suppressed during the motion.
     {
         Mask_t superGpio = gamepad->debouncedGpio;
         bool superLPpressed = mapSuperLP->pinMask && (superGpio & mapSuperLP->pinMask);
@@ -309,96 +326,52 @@ void ReverseInput::process()
             bool risingLK = superLKpressed && !prevSuperLK;
             if (risingLP || risingLK) {
                 superActive = true;
-                superDivert = false;
                 superStep = 0;
                 superStepStartTime = nowUs;
-                superStepDurationUs = superRandStepUs(superRng);
+                superStepDurationUs = SUPER_FRAME_US;       // opening steps are 1 frame
+                superTailType = 0;                          // 0 = playing the 21346 opening / tail undecided
                 superEnderDefault = risingLP ? mapButtonB1->buttonMask : mapButtonB3->buttonMask;
-                superEnderMask = rawButtons & superAttackMask;   // attack already held at press
-                bool heldLeft  = rawDpad & GAMEPAD_MASK_LEFT;
-                bool heldRight = rawDpad & GAMEPAD_MASK_RIGHT;
-                if (heldLeft || heldRight) {
-                    superMirror = heldRight;            // direction known at press -> commit now
-                    superDirPending = false;
-                } else {
-                    superMirror = false;                // tentative; step 0 ("down") is side-agnostic
-                    superDirPending = true;             // decide when the first step ends (late buffer)
-                }
+                superEnderMask = rawButtons & superAttackMask;                       // watch attacks (from press)
+                superDirLatch  = rawDpad & (GAMEPAD_MASK_LEFT | GAMEPAD_MASK_RIGHT);  // watch direction (from press)
             }
         }
 
         if (superActive) {
+            // From the press through the opening, keep latching any attack and the held direction.
+            if (superTailType == 0) {
+                superEnderMask |= (rawButtons & superAttackMask);
+                uint16_t d = rawDpad & (GAMEPAD_MASK_LEFT | GAMEPAD_MASK_RIGHT);
+                if (d) superDirLatch = d;
+            }
+
             if ((nowUs - superStepStartTime) >= superStepDurationUs) {
                 superStep++;
                 superStepStartTime = nowUs;
-
-                if (superStep == 1) {
-                    // Resolve at the end of the opening "2". A pressed attack of the OPPOSITE category
-                    // to the button diverts into 21346246 (HIGHEST priority, any direction incl. neutral):
-                    //   Reverse-LP + a KICK  -> 21346246 LK ;   Reverse-LK + a PUNCH -> 21346246 LP.
-                    superEnderMask |= (rawButtons & superAttackMask);
-                    bool isLPsuper = (superEnderDefault == A_LP);   // LP super (B1) vs LK super (B3)
-                    uint16_t pressedPunch = superEnderMask & (A_LP | A_MP | A_HP);
-                    uint16_t pressedKick  = superEnderMask & (A_LK | A_MK | A_HK);
-                    if (isLPsuper && pressedKick) {
-                        superDivert = true; superEnderMask = A_LK;   // LP super + kick -> 21346246 LK
-                    } else if (!isLPsuper && pressedPunch) {
-                        superDivert = true; superEnderMask = A_LP;   // LK super + punch -> 21346246 LP
-                    }
-                    if (superDivert) {
-                        superMirror = false;            // 21346246 is fixed, no mirror
-                        superDirPending = false;
+                if (superStep == SUPER_OPEN_COUNT) {
+                    // 21346 finished -> choose the tail (reuses the opening, no restart):
+                    if (superEnderMask) {                               // ANY attack -> divert
+                        superTailType = 1;                              // +246 = 21346246
+                        superEnderMask = A_LP | A_MK;                   // uniform divert ender (LP+MK)
+                    } else if (superDirLatch & GAMEPAD_MASK_LEFT) {     // held 4 -> +26 = 2134626
+                        superTailType = 2; superEnderMask = superEnderDefault;
+                    } else if (superDirLatch & GAMEPAD_MASK_RIGHT) {    // held 6 -> +24 = 2134624
+                        superTailType = 3; superEnderMask = superEnderDefault;
                     } else {
-                        // normal 23626 super: finalize the ender, then pick the side from the stick
-                        if (superEnderMask == 0) superEnderMask = superEnderDefault;
-                        if (superDirPending) {
-                            bool heldLeft  = rawDpad & GAMEPAD_MASK_LEFT;
-                            bool heldRight = rawDpad & GAMEPAD_MASK_RIGHT;
-                            if (heldLeft || heldRight) {
-                                superMirror = heldRight;
-                                superDirPending = false;
-                            } else {
-                                superActive = false;    // no divert, no direction -> cancel
-                            }
-                        }
+                        superActive = false;                            // no attack, no direction -> stop after 21346
                     }
                 }
-
-                // next step's duration + completion depend on which sequence we're playing
-                if (superDivert) {
-                    superStepDurationUs = (superStep >= SUPER_DIVERT_COUNT - 1) ? (2 * SUPER_FRAME_US) : SUPER_FRAME_US;
-                    if (superStep >= SUPER_DIVERT_COUNT) superActive = false;
-                } else {
-                    superStepDurationUs = superRandStepUs(superRng);
-                    if (superStep >= SUPER_STEP_COUNT) superActive = false;
+                if (superActive) {
+                    uint16_t d; bool isLast;
+                    if (!superSeq(superStep, superTailType, d, isLast)) superActive = false;   // past the end
+                    else superStepDurationUs = isLast ? (2 * SUPER_FRAME_US) : SUPER_FRAME_US;
                 }
             }
             if (superActive) {
-                if (superDivert) {
-                    // 21346246 + kick: fixed motion (no mirror); the kick fires on the last step
-                    gamepad->state.dpad = ST_21346246[superStep].dpad;
-                    gamepad->state.buttons &= ~superAttackMask;
-                    if (superStep == (SUPER_DIVERT_COUNT - 1)) {
-                        gamepad->state.buttons |= superEnderMask;
-                    }
-                } else {
-                    const SuperStep& st = SUPER_STEPS[superStep];
-                    // collect any attack pressed during the opening "2" so the ender can be e.g. HP
-                    if (superStep == 0) {
-                        superEnderMask |= (rawButtons & superAttackMask);
-                    }
-                    uint16_t outDpad = 0;
-                    if (st.dpad & GAMEPAD_MASK_DOWN) outDpad |= GAMEPAD_MASK_DOWN;
-                    bool stepLeft  = st.dpad & GAMEPAD_MASK_LEFT;
-                    bool stepRight = st.dpad & GAMEPAD_MASK_RIGHT;
-                    if (superMirror) { bool tmp = stepLeft; stepLeft = stepRight; stepRight = tmp; }
-                    if (stepLeft)  outDpad |= GAMEPAD_MASK_LEFT;
-                    if (stepRight) outDpad |= GAMEPAD_MASK_RIGHT;
-                    gamepad->state.dpad = outDpad;          // exclusive: the motion owns the stick
-                    gamepad->state.buttons &= ~superAttackMask;   // suppress held attacks during the motion
-                    if (st.fireButton) {
-                        gamepad->state.buttons |= (superEnderMask ? superEnderMask : superEnderDefault);
-                    }
+                uint16_t d; bool isLast;
+                if (superSeq(superStep, superTailType, d, isLast)) {
+                    gamepad->state.dpad = d;                            // exclusive (fixed sequence, no mirror)
+                    gamepad->state.buttons &= ~superAttackMask;        // suppress held attacks during the motion
+                    if (isLast) gamepad->state.buttons |= superEnderMask;   // ender on the last tail step
                 }
             }
         }

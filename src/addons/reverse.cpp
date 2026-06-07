@@ -110,6 +110,45 @@ static const MotionDef MOTION_DEFS[] = {
 static const int MOTION_COUNT = (int)(sizeof(MOTION_DEFS) / sizeof(MOTION_DEFS[0]));
 static_assert(MOTION_COUNT <= REVERSE_MOTION_MAX, "increase REVERSE_MOTION_MAX");
 
+// ---- Directional one-button moves (46 LP/HK, Air Throw, JMP) - clcy ----
+// Unlike the fixed MOTION_DEFS above, these SAMPLE the held horizontal at press and MIRROR it: you
+// hold "back", we output "forward" (hold ←/↙/↖ -> 6, hold →/↘/↗ -> 4). 46 LP/HK GATE on a held ←/→
+// (none -> don't fire); the jumps don't (none -> straight up). Each plays 1-2 fixed steps (jump,
+// then attack, for the air moves), a random 2-3 frames per step; the attack fires on its step. 46 LP
+// also OR-s in any PUNCH you hold at press (46 HK any KICK). Held attacks are suppressed so they
+// don't leak. State machine lives in process() (mirrors the MOTION_DEFS engine).
+#define DIR_STEP_FRAMES_MIN 2
+#define DIR_STEP_FRAMES_MAX 3
+#define DSF_UP  0x1u   // step includes UP
+#define DSF_FWD 0x2u   // step includes the (mirrored) forward horizontal
+
+struct DirStep { uint8_t flags; uint16_t attack; };   // attack: buttons pressed this step (0 = none)
+struct DirMoveDef {
+    GpioAction     action;
+    bool           gate;     // require a held ←/→ at press, else don't fire
+    uint16_t       addCat;   // pressed attacks of this category added on the attack step (0 = none)
+    const DirStep* steps;
+    uint8_t        count;
+};
+
+static const DirStep ST_46LP[]     = { { DSF_FWD, A_LP } };                                 // forward + LP
+static const DirStep ST_46HK[]     = { { DSF_FWD, A_HK } };                                 // forward + HK
+static const DirStep ST_46MK[]     = { { DSF_FWD, A_MK } };                                 // forward + MK
+static const DirStep ST_AIRTHROW[] = { { DSF_UP | DSF_FWD, 0 }, { DSF_FWD, A_LK | A_LP } };  // jump-in, then LK+LP
+static const DirStep ST_JMP[]      = { { DSF_UP | DSF_FWD, 0 }, { DSF_FWD, A_MP } };         // jump-in, then MP
+static const DirStep ST_KKK[]      = { { DSF_FWD, A_LK | A_MK | A_HK } };                    // forward + LK+MK+HK (Reversal KKK)
+
+static const DirMoveDef DIR_MOVE_DEFS[] = {
+    { GpioAction::BUTTON_PRESS_46_LP,        true,  (uint16_t)(A_LP | A_MP | A_HP), ST_46LP,     1 },
+    { GpioAction::BUTTON_PRESS_46_HK,        true,  (uint16_t)(A_LK | A_MK | A_HK), ST_46HK,     1 },
+    { GpioAction::BUTTON_PRESS_46_MK,        true,  (uint16_t)(A_LK | A_MK | A_HK), ST_46MK,     1 },
+    { GpioAction::BUTTON_PRESS_AIR_THROW,    false, 0,                              ST_AIRTHROW, 2 },
+    { GpioAction::BUTTON_PRESS_JMP,          false, 0,                              ST_JMP,      2 },
+    { GpioAction::BUTTON_PRESS_REVERSAL_KKK, true,  0,                              ST_KKK,      1 },
+};
+static const int DIR_MOVE_COUNT = (int)(sizeof(DIR_MOVE_DEFS) / sizeof(DIR_MOVE_DEFS[0]));
+static_assert(DIR_MOVE_COUNT <= REVERSE_DIRMOVE_MAX, "increase REVERSE_DIRMOVE_MAX");
+
 bool ReverseInput::available() {
     const ReverseOptions& options = Storage::getInstance().getAddonOptions().reverseOptions;
 	return options.enabled;
@@ -119,11 +158,7 @@ void ReverseInput::setup()
 {
     // Setup Reverse Input Button
     mapInputReverse = new GamepadButtonMapping(0);
-    mapReverseExtra1 = new GamepadButtonMapping(0);
-    mapReverseExtra2 = new GamepadButtonMapping(0);
-    mapReverseExtra3 = new GamepadButtonMapping(0);
-    mapReverseExtra4 = new GamepadButtonMapping(0);
-    mapReverseExtra5 = new GamepadButtonMapping(0);
+    mapInputReverseGate = new GamepadButtonMapping(0);
     mapSuperLP = new GamepadButtonMapping(0);
     mapSuperLK = new GamepadButtonMapping(0);
 
@@ -132,11 +167,7 @@ void ReverseInput::setup()
     {
         switch (pinMappings[pin].action) {
             case GpioAction::BUTTON_PRESS_INPUT_REVERSE: mapInputReverse->pinMask |= 1 << pin; break;
-            case GpioAction::BUTTON_PRESS_REVERSE_EXTRA_1: mapReverseExtra1->pinMask |= 1 << pin; break;
-            case GpioAction::BUTTON_PRESS_REVERSE_EXTRA_2: mapReverseExtra2->pinMask |= 1 << pin; break;
-            case GpioAction::BUTTON_PRESS_REVERSE_EXTRA_3: mapReverseExtra3->pinMask |= 1 << pin; break;
-            case GpioAction::BUTTON_PRESS_REVERSE_EXTRA_4: mapReverseExtra4->pinMask |= 1 << pin; break;
-            case GpioAction::BUTTON_PRESS_REVERSE_EXTRA_5: mapReverseExtra5->pinMask |= 1 << pin; break;
+            case GpioAction::BUTTON_PRESS_INPUT_REVERSE_GATE: mapInputReverseGate->pinMask |= 1 << pin; break;
             case GpioAction::BUTTON_PRESS_SUPER_LP: mapSuperLP->pinMask |= 1 << pin; break;
             case GpioAction::BUTTON_PRESS_SUPER_LK: mapSuperLK->pinMask |= 1 << pin; break;
             default:    break;
@@ -175,12 +206,8 @@ void ReverseInput::setup()
     invertYAxis = gamepad->getOptions().invertYAxis;
 
     state = false; // if reverse button is pressed
-    stateReverseExtra1 = false; // if reverse extra1 button is pressed
-    stateReverseExtra2 = false; // if reverse extra2 button is pressed
-    stateReverseExtra3 = false; // if reverse extra3 button is pressed
-    stateReverseExtra4 = false; // if reverse extra4 button is pressed
-    stateReverseExtra5 = false; // if reverse extra5 button is pressed
-    stateReverseActive = false; // if any of above buttons is pressed
+    stateReverseGate = false; // if the gated Drive Reversal (Drive Reversal G) button is pressed
+    stateReverseActive = false; // if the (drive reversal) reverse button is pressed
 
     // super motion state - clcy
     superActive = false;
@@ -218,28 +245,40 @@ void ReverseInput::setup()
             }
         }
     }
+
+    // Directional-move state + pin masks (46 LP/HK, Air Throw, JMP) - clcy
+    dirActive = false;
+    dirWhich = 0;
+    dirStep = 0;
+    dirStepStartTime = 0;
+    dirStepDurationUs = 0;
+    dirForward = 0;
+    dirAddedAttack = 0;
+    for (int i = 0; i < DIR_MOVE_COUNT; i++) {
+        dirPinMask[i] = 0;
+        dirPrev[i] = false;
+    }
+    for (Pin_t pin = 0; pin < (Pin_t)NUM_BANK0_GPIOS; pin++) {
+        for (int i = 0; i < DIR_MOVE_COUNT; i++) {
+            if (pinMappings[pin].action == DIR_MOVE_DEFS[i].action) {
+                dirPinMask[i] |= (1u << pin);
+            }
+        }
+    }
 }
 
 void ReverseInput::update() {
     Mask_t values = Storage::getInstance().GetGamepad()->debouncedGpio;
 
+    // Read the two Drive Reversal buttons; stateReverseActive (which drives the dpad-axis inversion in
+    // input()) is finalized in process(), since the gated variant also needs the held direction. The
+    // directional moves below handle their own direction. - clcy
     state = (values & mapInputReverse->pinMask);
-    stateReverseExtra1 = (values & mapReverseExtra1->pinMask);
-    stateReverseExtra2 = (values & mapReverseExtra2->pinMask);
-    stateReverseExtra3 = (values & mapReverseExtra3->pinMask);
-    stateReverseExtra4 = (values & mapReverseExtra4->pinMask);
-    stateReverseExtra5 = (values & mapReverseExtra5->pinMask);
-
-    // unified reverse state
-    stateReverseActive = state || stateReverseExtra1 || stateReverseExtra2 || stateReverseExtra3 || stateReverseExtra4 || stateReverseExtra5;
+    stateReverseGate = (values & mapInputReverseGate->pinMask);
 }
 void ReverseInput::reinit() {
     delete mapInputReverse;
-    delete mapReverseExtra1;
-    delete mapReverseExtra2;
-    delete mapReverseExtra3;
-    delete mapReverseExtra4;
-    delete mapReverseExtra5;
+    delete mapInputReverseGate;
     delete mapSuperLP;
     delete mapSuperLK;
     setup();
@@ -264,6 +303,12 @@ void ReverseInput::process()
     uint16_t rawDpad = gamepad->state.dpad;
     uint16_t rawButtons = gamepad->state.buttons;   // player's held buttons, before reverse remapping - clcy
 
+    // Drive Reversal: the ungated variant always inverts the dpad; "Drive Reversal G" only with a held
+    // ←/→ (no horizontal -> does nothing). Both invert via input() below and press L2. - clcy
+    bool gateHoriz  = (rawDpad & mapDpadLeft->buttonMask) || (rawDpad & mapDpadRight->buttonMask);
+    bool gateActive = stateReverseGate && gateHoriz;
+    stateReverseActive = state || gateActive;
+
     gamepad->state.dpad = 0
         | input(gamepad->state.dpad & mapDpadUp->buttonMask,    mapDpadUp->buttonMask,      mapDpadDown->buttonMask,    actionUp,       invertYAxis)
         | input(gamepad->state.dpad & mapDpadDown->buttonMask,  mapDpadDown->buttonMask,    mapDpadUp->buttonMask,      actionDown,     invertYAxis)
@@ -272,40 +317,9 @@ void ReverseInput::process()
     ;
 
 
-    if (state){
-        // Reverse Input Button for Reverse + L2 (sf6 drive reversal)
+    if (state || gateActive){
+        // Drive Reversal (or gated "Drive Reversal G") -> press L2 (sf6 drive reversal)
         gamepad->state.buttons |= mapButtonL2->buttonMask;
-    }
-    else if (stateReverseExtra1){
-        // Extra Button 1 for B1 button, for 46 lp 
-        gamepad->state.buttons |= mapButtonB1->buttonMask;
-    }
-    else if (stateReverseExtra2){
-        // Extra Button 2 for B1 R1 button , for 46 lp hp
-        gamepad->state.buttons |= mapButtonR1->buttonMask;
-        gamepad->state.buttons |= mapButtonB1->buttonMask;
-    }
-    else if (stateReverseExtra3){
-        // Extra Button 3 for up + B2 (MP / 中拳), for jump MP - clcy
-        gamepad->state.buttons |= mapButtonB2->buttonMask;
-        gamepad->state.dpad |= mapDpadUp->buttonMask;
-    }
-    else if (stateReverseExtra4){
-        // Extra Button 4 for B3 button , for 3 or 1 hp 
-        bool hasHorizontal =
-        (rawDpad & mapDpadLeft->buttonMask) ||
-        (rawDpad & mapDpadRight->buttonMask);
-
-        if (hasHorizontal) {
-            gamepad->state.buttons |= mapButtonR1->buttonMask;
-            gamepad->state.dpad    |= mapDpadDown->buttonMask;
-        }
-    }
-    else if (stateReverseExtra5){
-        // Extra Button 5 for B1 B3 button , for air throw
-        gamepad->state.buttons |= mapButtonB1->buttonMask;
-        gamepad->state.buttons |= mapButtonB3->buttonMask;
-        gamepad->state.dpad |= mapDpadUp->buttonMask;
     }
 
     // ---- "Reverse 23626 LP/LK" super: shared 21346 opening + a tail chosen at the end - clcy ----
@@ -321,7 +335,7 @@ void ReverseInput::process()
         bool superLKpressed = mapSuperLK->pinMask && (superGpio & mapSuperLK->pinMask);
         uint64_t nowUs = getMicro();
 
-        if (!superActive && !motionActive) {
+        if (!superActive && !motionActive && !dirActive) {
             bool risingLP = superLPpressed && !prevSuperLP;
             bool risingLK = superLKpressed && !prevSuperLK;
             if (risingLP || risingLK) {
@@ -390,7 +404,7 @@ void ReverseInput::process()
         Mask_t mGpio = gamepad->debouncedGpio;
         uint64_t nowUs = getMicro();
 
-        if (!motionActive && !superActive) {
+        if (!motionActive && !superActive && !dirActive) {
             for (int i = 0; i < MOTION_COUNT; i++) {
                 bool pressed = motionPinMask[i] && (mGpio & motionPinMask[i]);
                 if (pressed && !motionPrev[i]) {
@@ -436,6 +450,63 @@ void ReverseInput::process()
 
         for (int i = 0; i < MOTION_COUNT; i++) {
             motionPrev[i] = motionPinMask[i] && (mGpio & motionPinMask[i]);
+        }
+    }
+
+    // ---- Directional one-button moves (46 LP/HK, Air Throw, JMP) - clcy ----
+    // At press: mirror the held horizontal (hold ←/↙/↖ -> forward 6, hold →/↘/↗ -> forward 4). 46 LP/HK
+    // need a held ←/→ (gate); the jumps don't (no direction -> straight up). Then play the move's fixed
+    // 1-2 steps (each a random 2-3 frames), firing the attack (+ any pressed same-category attack,
+    // sampled at press) on its step. See DIR_MOVE_DEFS. Held attacks are suppressed so they don't leak.
+    {
+        Mask_t dGpio = gamepad->debouncedGpio;
+        uint64_t nowUs = getMicro();
+
+        if (!dirActive && !motionActive && !superActive) {
+            for (int i = 0; i < DIR_MOVE_COUNT; i++) {
+                bool pressed = dirPinMask[i] && (dGpio & dirPinMask[i]);
+                if (pressed && !dirPrev[i]) {
+                    const DirMoveDef& dm = DIR_MOVE_DEFS[i];
+                    uint16_t fwd = 0;                                  // mirror: held back -> forward
+                    if (rawDpad & GAMEPAD_MASK_LEFT)       fwd = GAMEPAD_MASK_RIGHT;
+                    else if (rawDpad & GAMEPAD_MASK_RIGHT) fwd = GAMEPAD_MASK_LEFT;
+                    if (dm.gate && fwd == 0) continue;                // 46 LP/HK need a ←/→ -> don't fire
+                    dirActive = true;
+                    dirWhich = i;
+                    dirStep = 0;
+                    dirStepStartTime = nowUs;
+                    dirStepDurationUs = randStepUs(superRng, DIR_STEP_FRAMES_MIN, DIR_STEP_FRAMES_MAX);
+                    dirForward = fwd;
+                    dirAddedAttack = dm.addCat ? (rawButtons & dm.addCat) : 0;
+                    break;   // one move at a time
+                }
+            }
+        }
+
+        if (dirActive) {
+            const DirMoveDef& dm = DIR_MOVE_DEFS[dirWhich];
+            if ((nowUs - dirStepStartTime) >= dirStepDurationUs) {
+                dirStep++;
+                dirStepStartTime = nowUs;
+                if (dirStep < dm.count) {
+                    dirStepDurationUs = randStepUs(superRng, DIR_STEP_FRAMES_MIN, DIR_STEP_FRAMES_MAX);
+                } else {
+                    dirActive = false;
+                }
+            }
+            if (dirActive) {
+                const DirStep& s = dm.steps[dirStep];
+                uint16_t outDpad = 0;
+                if (s.flags & DSF_UP)  outDpad |= GAMEPAD_MASK_UP;
+                if (s.flags & DSF_FWD) outDpad |= dirForward;
+                gamepad->state.dpad = outDpad;                    // exclusive (mirror handled at press)
+                gamepad->state.buttons &= ~superAttackMask;       // suppress held attacks during the move
+                if (s.attack) gamepad->state.buttons |= (s.attack | dirAddedAttack);   // attack on its step
+            }
+        }
+
+        for (int i = 0; i < DIR_MOVE_COUNT; i++) {
+            dirPrev[i] = dirPinMask[i] && (dGpio & dirPinMask[i]);
         }
     }
 

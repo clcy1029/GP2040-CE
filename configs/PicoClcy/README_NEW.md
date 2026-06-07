@@ -19,8 +19,11 @@ tuned for fighting games. 本文档是给**当前这台机器** (`/Users/chang/E
   ignored, and any 拳/脚 you press are **deferred** and fired together on the macro's
   **last frame** (蓄力 + 最后一帧同时出招). With `interruptible = false` the macro is fully
   exclusive (ignores all input).
-- **Reverse (`src/addons/reverse.cpp`)** — 1 main reverse + **5 extra buttons**, each mapped
-  to a one-button move combo (维嘉电钻 46LP、跳 MK、斜下 HP、空投、SF6 Drive Reversal 等).
+- **Reverse (`src/addons/reverse.cpp`)** — a family of one-button move buttons: **2 Drive Reversals**
+  (`Drive Reversal` + `Drive Reversal G`, the latter gated on a held ←/→), a **21346 super**
+  (`Reverse 23626 LP/LK`), a **hardcoded-motion engine** (236/214 QCR, 623*, 21346*, 22, 28*, 2HP…),
+  and **directional moves** (`46 LP`, `46 HK`, `Air Throw`, `JMP`) that mirror off your held direction.
+  All assigned via the web **Pin Mapping** dropdown (Add-ons → Input Reverse must be enabled).
 
 ---
 

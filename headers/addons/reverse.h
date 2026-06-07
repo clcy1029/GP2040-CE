@@ -39,6 +39,9 @@
 // Max number of table-driven hardcoded-motion buttons (see MOTION_DEFS in reverse.cpp) - clcy
 #define REVERSE_MOTION_MAX 32
 
+// Max number of table-driven directional one-button moves (see DIR_MOVE_DEFS in reverse.cpp) - clcy
+#define REVERSE_DIRMOVE_MAX 8
+
 class ReverseInput : public GPAddon {
 public:
     virtual bool available();
@@ -53,13 +56,7 @@ private:
     uint8_t input(uint32_t valueMask, uint16_t buttonMask, uint16_t buttonMaskReverse, uint8_t action, bool invertAxis);
 
     bool state;
-
-    //extra two buttons' state
-    bool stateReverseExtra1;
-    bool stateReverseExtra2;
-    bool stateReverseExtra3;
-    bool stateReverseExtra4;
-    bool stateReverseExtra5;
+    bool stateReverseGate;   // gated Drive Reversal (Drive Reversal G): only acts with a held ←/→ - clcy
 
     bool stateReverseActive;
 
@@ -70,6 +67,7 @@ private:
     GamepadButtonMapping *mapDpadLeft;
     GamepadButtonMapping *mapDpadRight;
     GamepadButtonMapping *mapInputReverse;
+    GamepadButtonMapping *mapInputReverseGate;   // gated Drive Reversal (Drive Reversal G) - clcy
 
     //usable buttons
     GamepadButtonMapping *mapButtonB1;
@@ -80,13 +78,6 @@ private:
     GamepadButtonMapping *mapButtonR1;
     GamepadButtonMapping *mapButtonL1;
 
-    //add two extra buttons
-    GamepadButtonMapping *mapReverseExtra1;
-    GamepadButtonMapping *mapReverseExtra2;
-    GamepadButtonMapping *mapReverseExtra3;
-    GamepadButtonMapping *mapReverseExtra4;
-    GamepadButtonMapping *mapReverseExtra5;
-    
     bool invertXAxis;
     bool invertYAxis;
 
@@ -126,6 +117,21 @@ private:
     uint64_t motionStepStartTime;
     uint64_t motionStepDurationUs;
     uint16_t motionEnderMask;      // attacks captured during the sequence
+
+    // Directional one-button moves (46 LP/HK, Air Throw, JMP): at press, sample the held horizontal
+    // and MIRROR it (held back -> output forward); 46 LP/HK gate on a held ←/→, the jumps don't.
+    // Play 1-2 fixed steps (jump then attack for the air moves), each a random 2-3 frames; the attack
+    // fires on its step, plus any pressed same-category attack (46 LP: punches, 46 HK: kicks).
+    // Table-driven (see DIR_MOVE_DEFS in reverse.cpp). - clcy
+    uint32_t dirPinMask[REVERSE_DIRMOVE_MAX];
+    bool     dirPrev[REVERSE_DIRMOVE_MAX];
+    bool     dirActive;
+    int      dirWhich;             // index into DIR_MOVE_DEFS
+    int      dirStep;
+    uint64_t dirStepStartTime;
+    uint64_t dirStepDurationUs;
+    uint16_t dirForward;           // mirrored forward horizontal sampled at press (0 = none held)
+    uint16_t dirAddedAttack;       // pressed same-category attack(s) sampled at press
 };
 
 #endif // _Reverse_H_

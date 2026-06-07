@@ -88,6 +88,56 @@ const options = Object.entries(BUTTON_ACTIONS)
 		};
 	});
 
+// Surface the fighting-game actions at the top of the "Actions" group: Macro Button,
+// Macro 1-10, then Reverse Input + Reverse Extra 1-5, then everything else in its
+// original (enum) order. - clcy
+const ACTION_ORDER_PRIORITY: string[] = [
+	'BUTTON_PRESS_SUPER_LP',
+	'BUTTON_PRESS_SUPER_LK',
+	'BUTTON_PRESS_QCR_236',
+	'BUTTON_PRESS_QCR_214',
+	'BUTTON_PRESS_6214_HCB',
+	'BUTTON_PRESS_4236_HCB',
+	'BUTTON_PRESS_623_LP',
+	'BUTTON_PRESS_623_HP',
+	'BUTTON_PRESS_623_LPMP',
+	'BUTTON_PRESS_623_LK',
+	'BUTTON_PRESS_623_HK',
+	'BUTTON_PRESS_623_LKMK',
+	'BUTTON_PRESS_21346_LK',
+	'BUTTON_PRESS_21346_HK',
+	'BUTTON_PRESS_21346_LKMK',
+	'BUTTON_PRESS_21346246_LK',
+	'BUTTON_PRESS_21346246_LP',
+	'BUTTON_PRESS_22_LKMK',
+	'BUTTON_PRESS_22',
+	'BUTTON_PRESS_28_HK',
+	'BUTTON_PRESS_28_LK',
+	'BUTTON_PRESS_28_LKMK',
+	'BUTTON_PRESS_2_HP',
+	'BUTTON_PRESS_46_LP',
+	'BUTTON_PRESS_46_HK',
+	'BUTTON_PRESS_46_MK',
+	'BUTTON_PRESS_13_HP',
+	'BUTTON_PRESS_13_HK',
+	'BUTTON_PRESS_AIR_THROW',
+	'BUTTON_PRESS_JMP',
+	'BUTTON_PRESS_REVERSAL_KKK',
+	'BUTTON_PRESS_INPUT_REVERSE',
+	'BUTTON_PRESS_MACRO',
+	'BUTTON_PRESS_MACRO_1',
+	'BUTTON_PRESS_MACRO_2',
+	'BUTTON_PRESS_MACRO_3',
+	'BUTTON_PRESS_MACRO_4',
+	'BUTTON_PRESS_MACRO_5',
+	'BUTTON_PRESS_MACRO_6',
+];
+
+const actionSortKey = (label: string) => {
+	const index = ACTION_ORDER_PRIORITY.indexOf(label);
+	return index === -1 ? ACTION_ORDER_PRIORITY.length : index;
+};
+
 const groupedOptions = [
 	{
 		label: 'Buttons',
@@ -95,7 +145,12 @@ const groupedOptions = [
 	},
 	{
 		label: 'Actions',
-		options: options.filter(({ type }) => type === 'action'),
+		// Only show our curated actions: the recently-built motion/super/reverse buttons + macros.
+		// ACTION_ORDER_PRIORITY doubles as the allowlist, so the dropdown isn't cluttered with the
+		// built-in guitar/drum/wheel/menu/SOCD/etc. actions. (Sorted by that same priority.)
+		options: options
+			.filter((o) => o.type === 'action' && ACTION_ORDER_PRIORITY.includes(o.label))
+			.sort((a, b) => actionSortKey(a.label) - actionSortKey(b.label)),
 	},
 ];
 

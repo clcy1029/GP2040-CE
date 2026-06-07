@@ -54,7 +54,7 @@ export default {
 	'ANALOG_DIRECTION_RS_Y_POS': '右アナログスティック Y+ （下）',
 	'ANALOG_DIRECTION_MOD_LOW': 'アナログスティック感度１',
 	'ANALOG_DIRECTION_MOD_HIGH': 'アナログスティック感度２',
-	'BUTTON_PRESS_INPUT_REVERSE': '入力反転',
+	'BUTTON_PRESS_INPUT_REVERSE': 'Drive Reversal',
 	'SUSTAIN_FOCUS_MODE': 'フォーカスモード有効',
 	'SUSTAIN_4_8_WAY_MODE': '４方向モード有効',
 	'MENU_NAVIGATION_UP': 'メニュー 上',

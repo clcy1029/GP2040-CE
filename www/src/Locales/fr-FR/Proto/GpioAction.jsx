@@ -70,7 +70,7 @@ export default {
 	'ANALOG_DIRECTION_RS_Y_POS': 'Stick analogique droit Y+',
 	'ANALOG_DIRECTION_MOD_LOW': 'Inclinaison stick analogique 1',
 	'ANALOG_DIRECTION_MOD_HIGH': 'Inclinaison stick analogique 2',
-	'BUTTON_PRESS_INPUT_REVERSE': 'Entrée inversée',
+	'BUTTON_PRESS_INPUT_REVERSE': 'Drive Reversal',
 	'SUSTAIN_FOCUS_MODE': 'Activation du mode Focus',
 	'SUSTAIN_4_8_WAY_MODE': 'Activation du mode 4 voies',
 	'MENU_NAVIGATION_UP': 'Menu Haut',

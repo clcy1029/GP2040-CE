@@ -70,7 +70,7 @@ export default {
 	'ANALOG_DIRECTION_RS_Y_POS': '오른쪽 아날로그 스틱 Y+',
 	'ANALOG_DIRECTION_MOD_LOW': '아날로그 스틱 기울기 1',
 	'ANALOG_DIRECTION_MOD_HIGH': '아날로그 스틱 기울기 2',
-	'BUTTON_PRESS_INPUT_REVERSE': '입력 반전',
+	'BUTTON_PRESS_INPUT_REVERSE': 'Drive Reversal',
 	'SUSTAIN_FOCUS_MODE': '포커스 모드 사용',
 	'SUSTAIN_4_8_WAY_MODE': '4-방향 모드 토글',
 	'MENU_NAVIGATION_UP': '메뉴 위',

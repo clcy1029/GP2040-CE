@@ -166,29 +166,16 @@ nuke** — just Step A + this copy.
 
 ---
 
-## Pin mapping (this board)
+## Custom buttons (一键出招 / macros)
 
-| RP2040 GPIO | Action |
-|-------------|--------|
-| GPIO_02 | BUTTON_PRESS_UP |
-| GPIO_03 | BUTTON_PRESS_DOWN |
-| GPIO_04 | BUTTON_PRESS_RIGHT |
-| GPIO_05 | BUTTON_PRESS_LEFT |
-| GPIO_06 | BUTTON_PRESS_B4 |
-| GPIO_07 | BUTTON_PRESS_L1 |
-| GPIO_10 | BUTTON_PRESS_B2 |
-| GPIO_11 | BUTTON_PRESS_R1 |
-| GPIO_12 | BUTTON_PRESS_R2 |
-| GPIO_15 | BUTTON_PRESS_L2 |
-| GPIO_16 | BUTTON_PRESS_S1 |
-| GPIO_17 | BUTTON_PRESS_S2 |
-| GPIO_19 | BUTTON_PRESS_B3 |
-| GPIO_20 | BUTTON_PRESS_L3 |
-| GPIO_21 | BUTTON_PRESS_R3 |
-| GPIO_28 | BUTTON_PRESS_B1 |
+Every custom one-button move — the **super**, the fixed-motion specials (236/214/623/21346/…), the
+direction-sensing moves (46 / 1·3 / 28 charge / Air Throw / JMP / Reversal KKK) and the **Drive
+Reversal** — and exactly what each does is documented in
+**[README_PicoClcy_Buttons.md](README_PicoClcy_Buttons.md)**.
 
 Macro / Reverse trigger pins are assigned in the **web config UI** (Add-ons → Input Macro /
-Input Reverse), not in `BoardConfig.h`.
+Input Reverse), **not** in `BoardConfig.h`. ⚠️ The **Input Reverse** add-on must stay **Enabled** —
+every custom move runs inside it; disabling it turns them all off.
 
 ---
 
@@ -196,3 +183,26 @@ Input Reverse), not in `BoardConfig.h`.
 
 - GP2040-CE install / flashing guide: <https://gp2040-ce.info/installation/>
 - Build environment guide: <https://gp2040-ce.info/development/build-environment>
+
+---
+
+## Main Pin Mapping Configuration
+
+| RP2040 Pin | Action                        | 
+|------------|-------------------------------|
+#define GPIO_PIN_02 | GpioAction::BUTTON_PRESS_UP     
+#define GPIO_PIN_03 | GpioAction::BUTTON_PRESS_DOWN   
+#define GPIO_PIN_04 | GpioAction::BUTTON_PRESS_RIGHT  
+#define GPIO_PIN_05 | GpioAction::BUTTON_PRESS_LEFT   
+#define GPIO_PIN_06 | GpioAction::BUTTON_PRESS_B4     
+#define GPIO_PIN_07 | GpioAction::BUTTON_PRESS_L1     
+#define GPIO_PIN_10 | GpioAction::BUTTON_PRESS_B2     
+#define GPIO_PIN_11 | GpioAction::BUTTON_PRESS_R1     
+#define GPIO_PIN_12 | GpioAction::BUTTON_PRESS_R2
+#define GPIO_PIN_15 | GpioAction::BUTTON_PRESS_L2     
+#define GPIO_PIN_16 | GpioAction::BUTTON_PRESS_S1     
+#define GPIO_PIN_17 | GpioAction::BUTTON_PRESS_S2     
+#define GPIO_PIN_19 | GpioAction::BUTTON_PRESS_B3     
+#define GPIO_PIN_20 | GpioAction::BUTTON_PRESS_L3     
+#define GPIO_PIN_21 | GpioAction::BUTTON_PRESS_R3     
+#define GPIO_PIN_28 | GpioAction::BUTTON_PRESS_B1     

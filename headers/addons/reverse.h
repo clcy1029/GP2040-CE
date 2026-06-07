@@ -40,7 +40,7 @@
 #define REVERSE_MOTION_MAX 32
 
 // Max number of table-driven directional one-button moves (see DIR_MOVE_DEFS in reverse.cpp) - clcy
-#define REVERSE_DIRMOVE_MAX 8
+#define REVERSE_DIRMOVE_MAX 16
 
 class ReverseInput : public GPAddon {
 public:
@@ -56,7 +56,6 @@ private:
     uint8_t input(uint32_t valueMask, uint16_t buttonMask, uint16_t buttonMaskReverse, uint8_t action, bool invertAxis);
 
     bool state;
-    bool stateReverseGate;   // gated Drive Reversal (Drive Reversal G): only acts with a held ←/→ - clcy
 
     bool stateReverseActive;
 
@@ -67,7 +66,6 @@ private:
     GamepadButtonMapping *mapDpadLeft;
     GamepadButtonMapping *mapDpadRight;
     GamepadButtonMapping *mapInputReverse;
-    GamepadButtonMapping *mapInputReverseGate;   // gated Drive Reversal (Drive Reversal G) - clcy
 
     //usable buttons
     GamepadButtonMapping *mapButtonB1;

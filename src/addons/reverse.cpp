@@ -56,7 +56,7 @@ static inline uint64_t superRandStepUs(uint32_t& rng) {
     return randStepUs(rng, SUPER_STEP_FRAMES_MIN, SUPER_STEP_FRAMES_MAX);
 }
 
-// ---- General hardcoded-motion table (236/214/623*/21346*/22*/28*/2HP) - clcy ----
+// ---- General hardcoded-motion table (236/214 QCR, 6214/4236 HCB, 623*, 21346*, 22*, 2HP) - clcy ----
 // Numpad -> absolute dpad bits (fixed, no mirror): 5 = neutral.
 #define D_N  0
 #define D_2  GAMEPAD_MASK_DOWN
@@ -78,17 +78,20 @@ struct MotionDef  { GpioAction action; const MotionStep* steps; uint8_t count; u
 
 static const MotionStep ST_236[]   = { {D_2,1,2}, {D_3,1,2}, {D_6,2,3} };
 static const MotionStep ST_214[]   = { {D_2,1,2}, {D_1,1,2}, {D_4,2,3} };
+static const MotionStep ST_6214[]  = { {D_6,1,2}, {D_2,1,2}, {D_1,1,2}, {D_4,1,2} };   // 6214 HCB (all 1-2f)
+static const MotionStep ST_4236[]  = { {D_4,1,2}, {D_2,1,2}, {D_3,1,2}, {D_6,1,2} };   // 4236 HCB (all 1-2f)
 static const MotionStep ST_623[]   = { {D_1,1,2}, {D_3,1,2}, {D_1,1,2}, {D_3,1,2}, {D_1,2,3} };
 static const MotionStep ST_623HP[] = { {D_1,1,1}, {D_3,1,1}, {D_1,1,1}, {D_3,1,1}, {D_1,1,3} }; // steps 1f, last 1-3f
 static const MotionStep ST_21346[] = { {D_2,1,2}, {D_1,1,2}, {D_3,1,2}, {D_4,1,2}, {D_6,2,3} };
 static const MotionStep ST_21346246[] = { {D_2,1,1},{D_1,1,1},{D_3,1,1},{D_4,1,1},{D_6,1,1},{D_2,1,1},{D_4,1,1},{D_6,1,1} }; // all 1 frame
 static const MotionStep ST_22[]    = { {D_N,1,2}, {D_2,1,2}, {D_N,1,2}, {D_2,2,3} };
-static const MotionStep ST_28[]    = { {D_2,1,1}, {D_8,2,3} };   // 2 is 1 frame, then 8 + attack (2-3f)
 static const MotionStep ST_2HP[]   = { {D_2,4,4} };              // single step, 4 frames
 
 static const MotionDef MOTION_DEFS[] = {
     { GpioAction::BUTTON_PRESS_QCR_236,    ST_236,   3, 0 },
     { GpioAction::BUTTON_PRESS_QCR_214,    ST_214,   3, 0 },
+    { GpioAction::BUTTON_PRESS_6214_HCB,   ST_6214,  4, 0 },
+    { GpioAction::BUTTON_PRESS_4236_HCB,   ST_4236,  4, 0 },
     { GpioAction::BUTTON_PRESS_623_LP,     ST_623,   5, A_LP },
     { GpioAction::BUTTON_PRESS_623_HP,     ST_623HP, 5, A_HP },
     { GpioAction::BUTTON_PRESS_623_LPMP,   ST_623,   5, A_LP | A_MP },
@@ -102,49 +105,61 @@ static const MotionDef MOTION_DEFS[] = {
     { GpioAction::BUTTON_PRESS_21346246_LP, ST_21346246, 8, A_LP },
     { GpioAction::BUTTON_PRESS_22_LKMK,    ST_22,    4, A_LK | A_MK },
     { GpioAction::BUTTON_PRESS_22,         ST_22,    4, 0 },
-    { GpioAction::BUTTON_PRESS_28_HK,      ST_28,    2, A_HK },
-    { GpioAction::BUTTON_PRESS_28_LK,      ST_28,    2, A_LK },
-    { GpioAction::BUTTON_PRESS_28_LKMK,    ST_28,    2, A_LK | A_MK },
     { GpioAction::BUTTON_PRESS_2_HP,       ST_2HP,   1, A_HP },
 };
 static const int MOTION_COUNT = (int)(sizeof(MOTION_DEFS) / sizeof(MOTION_DEFS[0]));
 static_assert(MOTION_COUNT <= REVERSE_MOTION_MAX, "increase REVERSE_MOTION_MAX");
 
-// ---- Directional one-button moves (46 LP/HK, Air Throw, JMP) - clcy ----
-// Unlike the fixed MOTION_DEFS above, these SAMPLE the held horizontal at press and MIRROR it: you
-// hold "back", we output "forward" (hold ←/↙/↖ -> 6, hold →/↘/↗ -> 4). 46 LP/HK GATE on a held ←/→
-// (none -> don't fire); the jumps don't (none -> straight up). Each plays 1-2 fixed steps (jump,
-// then attack, for the air moves), a random 2-3 frames per step; the attack fires on its step. 46 LP
-// also OR-s in any PUNCH you hold at press (46 HK any KICK). Held attacks are suppressed so they
-// don't leak. State machine lives in process() (mirrors the MOTION_DEFS engine).
-#define DIR_STEP_FRAMES_MIN 2
-#define DIR_STEP_FRAMES_MAX 3
-#define DSF_UP  0x1u   // step includes UP
-#define DSF_FWD 0x2u   // step includes the (mirrored) forward horizontal
+// ---- Directional one-button moves (46 LP/HK/MK, 1/3 HP/HK, 28 HK/LK/LKMK, Air Throw, JMP, KKK) - clcy ----
+// Unlike the fixed MOTION_DEFS above, these SAMPLE a held direction at press and act on it. Most MIRROR
+// the held horizontal: you hold "back", we output "forward" (hold ←/↙/↖ -> 6, hold →/↘/↗ -> 4; the 1/3
+// moves add DOWN -> the ↓-forward diagonal 3/1). Gate options (GATE_*): HORIZ needs a held ←/→, DOWN needs
+// a held ↓ (the 28 charge moves: player is already charging -> just fire 8+attack), NONE never gates (the
+// jumps: no direction -> straight up). Each plays 1-2 fixed steps, a random [minF,maxF] frames per step;
+// the attack fires on its step. 46 LP also OR-s in any PUNCH held at press (46 HK/MK any KICK). Lives in process().
+#define DSF_UP   0x1u   // step includes UP
+#define DSF_FWD  0x2u   // step includes the (mirrored) forward horizontal
+#define DSF_DOWN 0x4u   // step includes DOWN (so FWD+DOWN = the 1/3 down-forward diagonal)
+
+#define GATE_NONE  0    // no gate (jumps: no direction -> straight up)
+#define GATE_HORIZ 1    // require a held ←/→ at press (mirror to forward), else don't fire
+#define GATE_DOWN  2    // require a held ↓ at press (28 charge moves: player already charging), else don't fire
 
 struct DirStep { uint8_t flags; uint16_t attack; };   // attack: buttons pressed this step (0 = none)
 struct DirMoveDef {
     GpioAction     action;
-    bool           gate;     // require a held ←/→ at press, else don't fire
+    uint8_t        gate;     // GATE_NONE / GATE_HORIZ / GATE_DOWN
     uint16_t       addCat;   // pressed attacks of this category added on the attack step (0 = none)
     const DirStep* steps;
     uint8_t        count;
+    uint8_t        minF;     // per-step hold = random [minF, maxF] frames
+    uint8_t        maxF;
 };
 
 static const DirStep ST_46LP[]     = { { DSF_FWD, A_LP } };                                 // forward + LP
 static const DirStep ST_46HK[]     = { { DSF_FWD, A_HK } };                                 // forward + HK
 static const DirStep ST_46MK[]     = { { DSF_FWD, A_MK } };                                 // forward + MK
+static const DirStep ST_13HP[]     = { { DSF_FWD | DSF_DOWN, A_HP } };                       // ↓-forward (1/3) + HP
+static const DirStep ST_13HK[]     = { { DSF_FWD | DSF_DOWN, A_HK } };                       // ↓-forward (1/3) + HK
+static const DirStep ST_28HK[]     = { { DSF_UP, A_HK } };                                   // 8 (up) + HK   (charge: needs held ↓)
+static const DirStep ST_28LK[]     = { { DSF_UP, A_LK } };                                   // 8 (up) + LK
+static const DirStep ST_28LKMK[]   = { { DSF_UP, A_LK | A_MK } };                            // 8 (up) + LK+MK
 static const DirStep ST_AIRTHROW[] = { { DSF_UP | DSF_FWD, 0 }, { DSF_FWD, A_LK | A_LP } };  // jump-in, then LK+LP
 static const DirStep ST_JMP[]      = { { DSF_UP | DSF_FWD, 0 }, { DSF_FWD, A_MP } };         // jump-in, then MP
 static const DirStep ST_KKK[]      = { { DSF_FWD, A_LK | A_MK | A_HK } };                    // forward + LK+MK+HK (Reversal KKK)
 
 static const DirMoveDef DIR_MOVE_DEFS[] = {
-    { GpioAction::BUTTON_PRESS_46_LP,        true,  (uint16_t)(A_LP | A_MP | A_HP), ST_46LP,     1 },
-    { GpioAction::BUTTON_PRESS_46_HK,        true,  (uint16_t)(A_LK | A_MK | A_HK), ST_46HK,     1 },
-    { GpioAction::BUTTON_PRESS_46_MK,        true,  (uint16_t)(A_LK | A_MK | A_HK), ST_46MK,     1 },
-    { GpioAction::BUTTON_PRESS_AIR_THROW,    false, 0,                              ST_AIRTHROW, 2 },
-    { GpioAction::BUTTON_PRESS_JMP,          false, 0,                              ST_JMP,      2 },
-    { GpioAction::BUTTON_PRESS_REVERSAL_KKK, true,  0,                              ST_KKK,      1 },
+    { GpioAction::BUTTON_PRESS_46_LP,        GATE_HORIZ, (uint16_t)(A_LP | A_MP | A_HP), ST_46LP,     1, 2, 3 },
+    { GpioAction::BUTTON_PRESS_46_HK,        GATE_HORIZ, (uint16_t)(A_LK | A_MK | A_HK), ST_46HK,     1, 2, 3 },
+    { GpioAction::BUTTON_PRESS_46_MK,        GATE_HORIZ, (uint16_t)(A_LK | A_MK | A_HK), ST_46MK,     1, 2, 3 },
+    { GpioAction::BUTTON_PRESS_13_HP,        GATE_HORIZ, 0,                              ST_13HP,     1, 3, 4 },
+    { GpioAction::BUTTON_PRESS_13_HK,        GATE_HORIZ, 0,                              ST_13HK,     1, 3, 4 },
+    { GpioAction::BUTTON_PRESS_28_HK,        GATE_DOWN,  0,                              ST_28HK,     1, 2, 3 },
+    { GpioAction::BUTTON_PRESS_28_LK,        GATE_DOWN,  0,                              ST_28LK,     1, 2, 3 },
+    { GpioAction::BUTTON_PRESS_28_LKMK,      GATE_DOWN,  0,                              ST_28LKMK,   1, 2, 3 },
+    { GpioAction::BUTTON_PRESS_AIR_THROW,    GATE_NONE,  0,                              ST_AIRTHROW, 2, 2, 3 },
+    { GpioAction::BUTTON_PRESS_JMP,          GATE_NONE,  0,                              ST_JMP,      2, 2, 3 },
+    { GpioAction::BUTTON_PRESS_REVERSAL_KKK, GATE_HORIZ, 0,                              ST_KKK,      1, 2, 3 },
 };
 static const int DIR_MOVE_COUNT = (int)(sizeof(DIR_MOVE_DEFS) / sizeof(DIR_MOVE_DEFS[0]));
 static_assert(DIR_MOVE_COUNT <= REVERSE_DIRMOVE_MAX, "increase REVERSE_DIRMOVE_MAX");
@@ -158,7 +173,6 @@ void ReverseInput::setup()
 {
     // Setup Reverse Input Button
     mapInputReverse = new GamepadButtonMapping(0);
-    mapInputReverseGate = new GamepadButtonMapping(0);
     mapSuperLP = new GamepadButtonMapping(0);
     mapSuperLK = new GamepadButtonMapping(0);
 
@@ -167,7 +181,6 @@ void ReverseInput::setup()
     {
         switch (pinMappings[pin].action) {
             case GpioAction::BUTTON_PRESS_INPUT_REVERSE: mapInputReverse->pinMask |= 1 << pin; break;
-            case GpioAction::BUTTON_PRESS_INPUT_REVERSE_GATE: mapInputReverseGate->pinMask |= 1 << pin; break;
             case GpioAction::BUTTON_PRESS_SUPER_LP: mapSuperLP->pinMask |= 1 << pin; break;
             case GpioAction::BUTTON_PRESS_SUPER_LK: mapSuperLK->pinMask |= 1 << pin; break;
             default:    break;
@@ -206,8 +219,7 @@ void ReverseInput::setup()
     invertYAxis = gamepad->getOptions().invertYAxis;
 
     state = false; // if reverse button is pressed
-    stateReverseGate = false; // if the gated Drive Reversal (Drive Reversal G) button is pressed
-    stateReverseActive = false; // if the (drive reversal) reverse button is pressed
+    stateReverseActive = false; // if the gated Drive Reversal is active (held + a ←/→)
 
     // super motion state - clcy
     superActive = false;
@@ -270,15 +282,13 @@ void ReverseInput::setup()
 void ReverseInput::update() {
     Mask_t values = Storage::getInstance().GetGamepad()->debouncedGpio;
 
-    // Read the two Drive Reversal buttons; stateReverseActive (which drives the dpad-axis inversion in
-    // input()) is finalized in process(), since the gated variant also needs the held direction. The
-    // directional moves below handle their own direction. - clcy
+    // stateReverseActive (which drives the dpad-axis inversion in input()) is finalized in process(),
+    // since the gated Drive Reversal also needs the held direction. The directional moves below handle
+    // their own direction. - clcy
     state = (values & mapInputReverse->pinMask);
-    stateReverseGate = (values & mapInputReverseGate->pinMask);
 }
 void ReverseInput::reinit() {
     delete mapInputReverse;
-    delete mapInputReverseGate;
     delete mapSuperLP;
     delete mapSuperLK;
     setup();
@@ -303,11 +313,11 @@ void ReverseInput::process()
     uint16_t rawDpad = gamepad->state.dpad;
     uint16_t rawButtons = gamepad->state.buttons;   // player's held buttons, before reverse remapping - clcy
 
-    // Drive Reversal: the ungated variant always inverts the dpad; "Drive Reversal G" only with a held
-    // ←/→ (no horizontal -> does nothing). Both invert via input() below and press L2. - clcy
-    bool gateHoriz  = (rawDpad & mapDpadLeft->buttonMask) || (rawDpad & mapDpadRight->buttonMask);
-    bool gateActive = stateReverseGate && gateHoriz;
-    stateReverseActive = state || gateActive;
+    // Drive Reversal (gated): only acts when a ←/→ is held (no horizontal -> does nothing). It inverts
+    // the dpad (via input() below) and presses L2. - clcy
+    bool gateHoriz     = (rawDpad & mapDpadLeft->buttonMask) || (rawDpad & mapDpadRight->buttonMask);
+    bool reverseActive = state && gateHoriz;
+    stateReverseActive = reverseActive;
 
     gamepad->state.dpad = 0
         | input(gamepad->state.dpad & mapDpadUp->buttonMask,    mapDpadUp->buttonMask,      mapDpadDown->buttonMask,    actionUp,       invertYAxis)
@@ -317,8 +327,8 @@ void ReverseInput::process()
     ;
 
 
-    if (state || gateActive){
-        // Drive Reversal (or gated "Drive Reversal G") -> press L2 (sf6 drive reversal)
+    if (reverseActive){
+        // Drive Reversal (gated) -> press L2 (sf6 drive reversal)
         gamepad->state.buttons |= mapButtonL2->buttonMask;
     }
 
@@ -326,9 +336,9 @@ void ReverseInput::process()
     // Press -> play the shared opening 21346 (2,1,3,4,6). From the press, while it runs, watch for any
     // attack (k or p) and a held direction (4/6). When the opening's "6" finishes, pick the tail (this
     // reuses the already-played 21346, no restart):
-    //   any attack  -> +246 = 21346246, ender LP+MK (uniform);  hold 4 -> +26 = 2134626;  hold 6 -> +24 = 2134624
+    //   any attack  -> +246 = 21346246, ender = the attack(s) you pressed;  hold 4 -> +26 = 2134626;  hold 6 -> +24 = 2134624
     //   (the 26/24 supers end in the button's LK/LP);  no attack + no direction -> stop after 21346.
-    // Every step is 1 frame, the final attack step 2 frames. Held attacks suppressed during the motion.
+    // Every step is 1 frame, the final attack step 2-3 frames (random). Held attacks suppressed during the motion.
     {
         Mask_t superGpio = gamepad->debouncedGpio;
         bool superLPpressed = mapSuperLP->pinMask && (superGpio & mapSuperLP->pinMask);
@@ -365,7 +375,7 @@ void ReverseInput::process()
                     // 21346 finished -> choose the tail (reuses the opening, no restart):
                     if (superEnderMask) {                               // ANY attack -> divert
                         superTailType = 1;                              // +246 = 21346246
-                        superEnderMask = A_LP | A_MK;                   // uniform divert ender (LP+MK)
+                        // ender = the exact attack(s) the player pressed (kept in superEnderMask) - clcy
                     } else if (superDirLatch & GAMEPAD_MASK_LEFT) {     // held 4 -> +26 = 2134626
                         superTailType = 2; superEnderMask = superEnderDefault;
                     } else if (superDirLatch & GAMEPAD_MASK_RIGHT) {    // held 6 -> +24 = 2134624
@@ -377,7 +387,7 @@ void ReverseInput::process()
                 if (superActive) {
                     uint16_t d; bool isLast;
                     if (!superSeq(superStep, superTailType, d, isLast)) superActive = false;   // past the end
-                    else superStepDurationUs = isLast ? (2 * SUPER_FRAME_US) : SUPER_FRAME_US;
+                    else superStepDurationUs = isLast ? randStepUs(superRng, 2, 3) : SUPER_FRAME_US;  // attack step 2-3f random - clcy
                 }
             }
             if (superActive) {
@@ -394,7 +404,7 @@ void ReverseInput::process()
         prevSuperLK = superLKpressed;
     }
 
-    // ---- Hardcoded-motion buttons (236/214/623*/21346*/22*/28*/2HP) - clcy ----
+    // ---- Hardcoded-motion buttons (236/214 QCR, 6214/4236 HCB, 623*, 21346*, 22*, 2HP) - clcy ----
     // Fixed sequences, play to completion regardless of the stick (no mirror, no direction gate).
     // Per-step length is a random 1-2 frames, with per-motion overrides in MOTION_DEFS (e.g. 623 HP
     // steps = 1 frame + last 1-3; 2 HP = 4 frames). Any attack held at trigger OR pressed during the
@@ -470,12 +480,13 @@ void ReverseInput::process()
                     uint16_t fwd = 0;                                  // mirror: held back -> forward
                     if (rawDpad & GAMEPAD_MASK_LEFT)       fwd = GAMEPAD_MASK_RIGHT;
                     else if (rawDpad & GAMEPAD_MASK_RIGHT) fwd = GAMEPAD_MASK_LEFT;
-                    if (dm.gate && fwd == 0) continue;                // 46 LP/HK need a ←/→ -> don't fire
+                    if (dm.gate == GATE_HORIZ && fwd == 0) continue;                        // need a held ←/→
+                    if (dm.gate == GATE_DOWN  && !(rawDpad & GAMEPAD_MASK_DOWN)) continue;   // 28*: need a held ↓
                     dirActive = true;
                     dirWhich = i;
                     dirStep = 0;
                     dirStepStartTime = nowUs;
-                    dirStepDurationUs = randStepUs(superRng, DIR_STEP_FRAMES_MIN, DIR_STEP_FRAMES_MAX);
+                    dirStepDurationUs = randStepUs(superRng, dm.minF, dm.maxF);
                     dirForward = fwd;
                     dirAddedAttack = dm.addCat ? (rawButtons & dm.addCat) : 0;
                     break;   // one move at a time
@@ -489,7 +500,7 @@ void ReverseInput::process()
                 dirStep++;
                 dirStepStartTime = nowUs;
                 if (dirStep < dm.count) {
-                    dirStepDurationUs = randStepUs(superRng, DIR_STEP_FRAMES_MIN, DIR_STEP_FRAMES_MAX);
+                    dirStepDurationUs = randStepUs(superRng, dm.minF, dm.maxF);
                 } else {
                     dirActive = false;
                 }
@@ -497,8 +508,9 @@ void ReverseInput::process()
             if (dirActive) {
                 const DirStep& s = dm.steps[dirStep];
                 uint16_t outDpad = 0;
-                if (s.flags & DSF_UP)  outDpad |= GAMEPAD_MASK_UP;
-                if (s.flags & DSF_FWD) outDpad |= dirForward;
+                if (s.flags & DSF_UP)   outDpad |= GAMEPAD_MASK_UP;
+                if (s.flags & DSF_DOWN) outDpad |= GAMEPAD_MASK_DOWN;
+                if (s.flags & DSF_FWD)  outDpad |= dirForward;
                 gamepad->state.dpad = outDpad;                    // exclusive (mirror handled at press)
                 gamepad->state.buttons &= ~superAttackMask;       // suppress held attacks during the move
                 if (s.attack) gamepad->state.buttons |= (s.attack | dirAddedAttack);   // attack on its step

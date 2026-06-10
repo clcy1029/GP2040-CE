@@ -114,7 +114,6 @@ private:
     int      motionStep;
     uint64_t motionStepStartTime;
     uint64_t motionStepDurationUs;
-    uint16_t motionEnderMask;      // attacks captured during the sequence
 
     // Directional one-button moves (46 LP/HK, Air Throw, JMP): at press, sample the held horizontal
     // and MIRROR it (held back -> output forward); 46 LP/HK gate on a held ←/→, the jumps don't.
@@ -129,7 +128,17 @@ private:
     uint64_t dirStepStartTime;
     uint64_t dirStepDurationUs;
     uint16_t dirForward;           // mirrored forward horizontal sampled at press (0 = none held)
+    uint16_t dirHeld;              // raw held horizontal (no mirror, sampled at press) — for Anti Air 4MK
     uint16_t dirAddedAttack;       // pressed same-category attack(s) sampled at press
+
+    // 623 HP Charge: play 13131+HP, then HOLD HP while the button stays pressed (release to stop). - clcy
+    GamepadButtonMapping *mapChargeHP;
+    bool     chargeActive;
+    bool     chargeHold;           // true once 13131 is done and we're holding HP until release
+    int      chargeStep;
+    uint64_t chargeStepStartTime;
+    uint64_t chargeStepDurationUs;
+    bool     chargePrev;
 };
 
 #endif // _Reverse_H_

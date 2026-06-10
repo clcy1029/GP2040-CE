@@ -44,33 +44,50 @@ watches for **any attack** and a **held ←/→**. When the opening's final `6` 
 ## ② Fixed-motion specials
 
 Play a fixed numpad sequence (no mirror, no gate), to completion. Two ender styles:
-- **Your attack = ender** — `236 / 214 / 6214 / 4236 / 22`: whatever attack you press during the motion
-  comes out on the last step.
+- **Your attack = ender** — `236 / 214 / 6214 / 4236 / 22`: the attack you're holding **at the last step**
+  comes out (sampled *only* then — a leftover/early press that's released by the last step is ignored).
 - **Fixed ender** — everything else fires its built-in attack regardless of what you press.
 
 | Dropdown name | Enum | Sequence | Ender |
 |---|---|---|---|
-| 236 QCR | `BUTTON_PRESS_QCR_236` | 2,3,6 | your pressed attack |
-| 214 QCR | `BUTTON_PRESS_QCR_214` | 2,1,4 | your pressed attack |
+| 5236 QCR | `BUTTON_PRESS_QCR_236` | 5,2,3,6 | your pressed attack |
+| 5214 QCR | `BUTTON_PRESS_QCR_214` | 5,2,1,4 | your pressed attack |
 | 6214 HCB | `BUTTON_PRESS_6214_HCB` | 6,2,1,4 | your pressed attack |
+| 6214 LP | `BUTTON_PRESS_6214_LP` | 6,2,1,4 | LP **+ a held punch** (add); a **held kick** replaces it (kick only) |
 | 4236 HCB | `BUTTON_PRESS_4236_HCB` | 4,2,3,6 | your pressed attack |
+| 4236 LP | `BUTTON_PRESS_4236_LP` | 4,2,3,6 | LP **+ a held punch** (add); a **held kick** replaces it (kick only) |
 | 623 LP | `BUTTON_PRESS_623_LP` | 623 (DP) | LP |
+| 623 MP | `BUTTON_PRESS_623_MP` | 623 (DP) | MP |
 | 623 HP | `BUTTON_PRESS_623_HP` | 623 (DP) | HP |
 | 623 LPMP | `BUTTON_PRESS_623_LPMP` | 623 (DP) | LP+MP |
 | 623 LK | `BUTTON_PRESS_623_LK` | 623 (DP) | LK |
+| 623 MK | `BUTTON_PRESS_623_MK` | 623 (DP) | MK |
 | 623 HK | `BUTTON_PRESS_623_HK` | 623 (DP) | HK |
 | 623 LKMK | `BUTTON_PRESS_623_LKMK` | 623 (DP) | LK+MK |
-| 21346 LK | `BUTTON_PRESS_21346_LK` | 2,1,3,4,6 | LK *(a pressed kick LK/MK/HK overrides)* |
-| 21346 HK | `BUTTON_PRESS_21346_HK` | 2,1,3,4,6 | HK *(a pressed kick overrides)* |
+| 623 HP Charge | `BUTTON_PRESS_623_HP_CHARGE` | 1,3,1,3,1 | HP — **held as long as you keep the button pressed** (tap = one-shot) |
+| 21346 LP | `BUTTON_PRESS_21346_LP` | 2,1,3,4,6 | LP **+ a held punch** (MP/HP, add); but a **held kick** (LK/MK/HK) **replaces** LP (kick only) — read at the last step |
+| 21346 LK | `BUTTON_PRESS_21346_LK` | 2,1,3,4,6 | LK *(a kick held at the last step overrides)* |
+| 21346 HK | `BUTTON_PRESS_21346_HK` | 2,1,3,4,6 | HK *(a kick held at the last step overrides)* |
 | 21346 LKMK | `BUTTON_PRESS_21346_LKMK` | 2,1,3,4,6 | LK+MK |
 | 21346246 LK | `BUTTON_PRESS_21346246_LK` | 2,1,3,4,6,2,4,6 | LK |
 | 21346246 LP | `BUTTON_PRESS_21346246_LP` | 2,1,3,4,6,2,4,6 | LP |
+| 214236 LK | `BUTTON_PRESS_214236_LK` | 2,1,4,2,3,6 | LK |
+| 214236 MK | `BUTTON_PRESS_214236_MK` | 2,1,4,2,3,6 | MK |
+| 214236 HK | `BUTTON_PRESS_214236_HK` | 2,1,4,2,3,6 | HK |
+| 214236 LKMK | `BUTTON_PRESS_214236_LKMK` | 2,1,4,2,3,6 | LK+MK |
 | 22 LKMK | `BUTTON_PRESS_22_LKMK` | 2,2 | LK+MK |
+| 22 LK | `BUTTON_PRESS_22_LK` | 2,2 | LK |
+| 22 LP | `BUTTON_PRESS_22_LP` | 2,2 | LP — **but an attack held at the last step replaces it** |
 | 22 | `BUTTON_PRESS_22` | 2,2 | your pressed attack |
-| 2 HP | `BUTTON_PRESS_2_HP` | 2 (crouch, 4f) | HP |
+| Anti Air 2HP | `BUTTON_PRESS_2_HP` | 2 (crouch, 4f) | HP |
+| 2PP | `BUTTON_PRESS_2PP` | 2 (crouch, 2f) | LP+MP |
+| KKK | `BUTTON_PRESS_KKK` | (neutral, 2f) | LK+MK+HK — ignores all input (not the directional Reversal KKK) |
 
 > `623` is played as a `1,3,1,3,1` shortcut. Per-step length is a random 1-2 frames (last attack step
-> 2-3) with overrides: `623 HP` steps = 1f + last 1-3f, `2 HP` = 4f, `21346246` = all 1f.
+> 2-3) with overrides: `623 HP` steps = 1f + last 1-3f, `Anti Air 2HP` = 4f, `21346246` = all 1f, `214236` = 1f steps + last 2f,
+> `5236`/`5214 QCR` = leading 回中 neutral 2f then each dir 2-3f, `6214`/`4236 HCB` = each step 2-3f.
+> **`623 HP Charge`** is special — it plays `1,3,1,3,1` (each 1-2f) then **keeps HP pressed until you
+> release** the button (the only move that holds after its sequence; while held the stick passes through).
 
 ---
 
@@ -82,6 +99,7 @@ required direction isn't held. See the mirror rule at the top.
 | Dropdown name | Enum | Gate | Output | Timing |
 |---|---|---|---|---|
 | 46 LP | `BUTTON_PRESS_46_LP` | needs ←/→ | forward + **LP** + any held **punch** | 2-3f |
+| 46 MP | `BUTTON_PRESS_46_MP` | needs ←/→ | forward + **MP** + any held **punch** | 2-3f |
 | 46 HK | `BUTTON_PRESS_46_HK` | needs ←/→ | forward + **HK** + any held **kick** | 2-3f |
 | 46 MK | `BUTTON_PRESS_46_MK` | needs ←/→ | forward + **MK** + any held **kick** | 2-3f |
 | 1 or 3 HP | `BUTTON_PRESS_13_HP` | needs ←/→ | ↓-forward (**3** / **1**) + **HP** | 3-4f |
@@ -92,10 +110,13 @@ required direction isn't held. See the mirror rule at the top.
 | Air Throw | `BUTTON_PRESS_AIR_THROW` | none | ① jump ↑+forward ② **LK+LP** | 2-3f/step |
 | JMP | `BUTTON_PRESS_JMP` | none | ① jump ↑+forward ② **MP** | 2-3f/step |
 | Reversal KKK | `BUTTON_PRESS_REVERSAL_KKK` | needs ←/→ | forward + **LK+MK+HK** (all 3 kicks) | 2-3f |
+| Anti Air 4MK | `BUTTON_PRESS_ANTI_AIR_4MK` | needs ←/→ | **held ←/→ as-is** (no mirror, ↓ stripped) + **MK** | 2-3f |
 
 Notes:
-- **46 LP/HK/MK** also OR-in any *same-category* attack you're already holding at press (LP→punches,
-  HK/MK→kicks). The `1 or 3`, `28`, and `Reversal KKK` moves use a fixed ender (no add).
+- **46 LP/MP/HK/MK** also OR-in any *same-category* attack — held at press **or pressed during the move**
+  (added the instant you hit it, so e.g. hold ←, press 46 LP + HP → first frame is already `6 + LP+HP`):
+  46 LP/MP→punches, 46 HK/MK→kicks. The `1 or 3`, `28`, `Reversal KKK`, and `Anti Air 4MK` moves use a fixed ender (no add).
+- **Anti Air 4MK** does NOT mirror — it outputs the side you're *actually* holding (←→4, →→6; 1→4, 3→6 with ↓ dropped) + MK.
 - **28 ×** are charge moves: you must already be **holding ↓** (1/2/3 all count). If no ↓ is held,
   nothing comes out — the firmware just fires `8+attack` to cash in your charge.
 - **Air Throw / JMP** don't gate: with no ←/→ they jump straight up (`↑`) instead of toward the opponent.

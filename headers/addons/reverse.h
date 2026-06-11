@@ -37,7 +37,7 @@
 #define ReverseName "Input Reverse"
 
 // Max number of table-driven hardcoded-motion buttons (see MOTION_DEFS in reverse.cpp) - clcy
-#define REVERSE_MOTION_MAX 32
+#define REVERSE_MOTION_MAX 48
 
 // Max number of table-driven directional one-button moves (see DIR_MOVE_DEFS in reverse.cpp) - clcy
 #define REVERSE_DIRMOVE_MAX 16
@@ -88,6 +88,8 @@ private:
     // One-button super motion (timed sequence, auto-mirror by held direction) - clcy
     GamepadButtonMapping *mapSuperLP;   // 23626 (or mirror 21424) + LP (B1)
     GamepadButtonMapping *mapSuperLK;   // 23626 (or mirror 21424) + LK (B3)
+    GamepadButtonMapping *mapSuperLPNew;   // (NEW) Reverse 23626 LP: on the attack-divert, ender flips to LK - clcy
+    GamepadButtonMapping *mapSuperLKNew;   // (NEW) Reverse 23626 LK: on the attack-divert, ender flips to LP - clcy
     bool superActive;
     int  superStep;
     uint64_t superStepStartTime;
@@ -97,12 +99,15 @@ private:
     uint16_t superEnderMask;      // attack(s) held during the buffer -> overrides the default ender
     bool prevSuperLP;
     bool prevSuperLK;
+    bool prevSuperLPNew;
+    bool prevSuperLKNew;
     bool superDirPending;      // late buffer: pressed before a direction -> side decided when step 0 ends
     uint64_t superStepDurationUs;  // current step's hold time (randomized 1-2 frames)
     uint32_t superRng;             // xorshift PRNG state for the per-step length randomness
     bool superDivert;              // (legacy — unused by the current super)
     int  superTailType;            // super tail: 0=opening, 1=246 (divert), 2=26 (held 4), 3=24 (held 6)
     uint16_t superDirLatch;        // super: ←/→ latched during the 21346 opening
+    uint16_t superDivertEnder;     // (NEW) super variants: attack-divert ender (flipped LP/LK); 0 = use the pressed attack - clcy
 
     // General hardcoded-motion buttons (236/214/623*/21346*/22*/28*/2HP): fixed sequences, no
     // mirror/gate, play to completion; a pressed attack overrides the per-motion default ender,
@@ -139,6 +144,12 @@ private:
     uint64_t chargeStepStartTime;
     uint64_t chargeStepDurationUs;
     bool     chargePrev;
+
+    // Continuous-hold timestamps for 4/6/2 (wall-clock; 0 = released). The 46*/28* charge gates check
+    // these against CHARGE_FRAMES (real ~45-frame charge). - clcy
+    uint64_t holdStartLeft;
+    uint64_t holdStartRight;
+    uint64_t holdStartDown;
 };
 
 #endif // _Reverse_H_

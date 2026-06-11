@@ -22,7 +22,7 @@ There are **3 move engines + Drive Reversal + macros**:
 
 ---
 
-## ① Super — `Reverse 23626 LP` / `Reverse 23626 LK`
+## ① Super — `Reverse 23626 LP` / `Reverse 23626 LK` (+ `(NEW)` variants)
 
 Press → immediately play the shared opening **`21346`** (2,1,3,4,6, 1 frame each). From the press it
 watches for **any attack** and a **held ←/→**. When the opening's final `6` finishes it picks a tail
@@ -36,6 +36,9 @@ watches for **any attack** and a **held ←/→**. When the opening's final `6` 
 | nothing | stops after `21346` | — |
 
 - `Reverse 23626 LP` default ender = **LP**; `Reverse 23626 LK` default = **LK**.
+- **`(NEW) Reverse 23626 LP` / `(NEW) Reverse 23626 LK`** — identical, EXCEPT the **"pressed any attack" divert** ender
+  is a fixed **flip** instead of the attack you pressed: (NEW) LK → `21346246 + LP`, (NEW) LP → `21346246 + LK`
+  (any attack just triggers it; the specific button doesn't matter). The no-attack ←/→ tails are unchanged (LK / LP).
 - Opening steps 1 frame; the **final attack step is 2-3 frames (random)**.
 - Held attacks are suppressed during the motion so they don't leak.
 
@@ -52,10 +55,12 @@ Play a fixed numpad sequence (no mirror, no gate), to completion. Two ender styl
 |---|---|---|---|
 | 5236 QCR | `BUTTON_PRESS_QCR_236` | 5,2,3,6 | your pressed attack |
 | 5214 QCR | `BUTTON_PRESS_QCR_214` | 5,2,1,4 | your pressed attack |
+| (Bison) 5236 LK | `BUTTON_PRESS_BISON_5236_LK` | 5,2,3,6 | **LK**, or a held attack replaces it (any; multiple OK) |
+| (Bison) 5214 LK | `BUTTON_PRESS_BISON_5214_LK` | 5,2,1,4 | **LK**, or a held attack replaces it (any; multiple OK) |
 | 6214 HCB | `BUTTON_PRESS_6214_HCB` | 6,2,1,4 | your pressed attack |
-| 6214 LP | `BUTTON_PRESS_6214_LP` | 6,2,1,4 | LP **+ a held punch** (add); a **held kick** replaces it (kick only) |
+| 6214 LP | `BUTTON_PRESS_6214_LP` | 6,2,1,4 (atk on 4, 2f) | held attack(s) **replace LP** (multiple OK), fired on the last dir step; LP if none |
 | 4236 HCB | `BUTTON_PRESS_4236_HCB` | 4,2,3,6 | your pressed attack |
-| 4236 LP | `BUTTON_PRESS_4236_LP` | 4,2,3,6 | LP **+ a held punch** (add); a **held kick** replaces it (kick only) |
+| 4236 LP | `BUTTON_PRESS_4236_LP` | 4,2,3,6 (atk on 6, 2f) | held attack(s) **replace LP** (multiple OK), fired on the last dir step; LP if none |
 | 623 LP | `BUTTON_PRESS_623_LP` | 623 (DP) | LP |
 | 623 MP | `BUTTON_PRESS_623_MP` | 623 (DP) | MP |
 | 623 HP | `BUTTON_PRESS_623_HP` | 623 (DP) | HP |
@@ -98,27 +103,29 @@ required direction isn't held. See the mirror rule at the top.
 
 | Dropdown name | Enum | Gate | Output | Timing |
 |---|---|---|---|---|
-| 46 LP | `BUTTON_PRESS_46_LP` | needs ←/→ | forward + **LP** + any held **punch** | 2-3f |
-| 46 MP | `BUTTON_PRESS_46_MP` | needs ←/→ | forward + **MP** + any held **punch** | 2-3f |
-| 46 HK | `BUTTON_PRESS_46_HK` | needs ←/→ | forward + **HK** + any held **kick** | 2-3f |
-| 46 MK | `BUTTON_PRESS_46_MK` | needs ←/→ | forward + **MK** + any held **kick** | 2-3f |
+| 46 LP | `BUTTON_PRESS_46_LP` | ←/→ **charged 45f** | forward + **LP**, or a held **punch** replaces it (MP/HP→that) | 2-3f |
+| 46 MP | `BUTTON_PRESS_46_MP` | ←/→ **charged 45f** | **1f forward lead** (detect attack) → forward + **MP**, or a held **punch** replaces it | 1f + 2-3f |
 | 1 or 3 HP | `BUTTON_PRESS_13_HP` | needs ←/→ | ↓-forward (**3** / **1**) + **HP** | 3-4f |
 | 1 or 3 HK | `BUTTON_PRESS_13_HK` | needs ←/→ | ↓-forward (**3** / **1**) + **HK** | 3-4f |
-| 28 HK | `BUTTON_PRESS_28_HK` | needs **↓** held | **8 (↑) + HK** | 2-3f |
-| 28 LK | `BUTTON_PRESS_28_LK` | needs **↓** held | **8 (↑) + LK** | 2-3f |
-| 28 LKMK | `BUTTON_PRESS_28_LKMK` | needs **↓** held | **8 (↑) + LK+MK** | 2-3f |
+| 28 HK | `BUTTON_PRESS_28_HK` | **↓ charged 45f** | **8 (↑)** + HK, or a held **attack** (any) replaces it | 2-3f |
+| 28 LK | `BUTTON_PRESS_28_LK` | **↓ charged 45f** | **8 (↑)** + LK, or a held **attack** (any) replaces it | 2-3f |
+| 28 LKMK | `BUTTON_PRESS_28_LKMK` | **↓ charged 45f** | **8 (↑)** + LK+MK, or a held **attack** (any) replaces it | 2-3f |
 | Air Throw | `BUTTON_PRESS_AIR_THROW` | none | ① jump ↑+forward ② **LK+LP** | 2-3f/step |
 | JMP | `BUTTON_PRESS_JMP` | none | ① jump ↑+forward ② **MP** | 2-3f/step |
 | Reversal KKK | `BUTTON_PRESS_REVERSAL_KKK` | needs ←/→ | forward + **LK+MK+HK** (all 3 kicks) | 2-3f |
 | Anti Air 4MK | `BUTTON_PRESS_ANTI_AIR_4MK` | needs ←/→ | **held ←/→ as-is** (no mirror, ↓ stripped) + **MK** | 2-3f |
 
 Notes:
-- **46 LP/MP/HK/MK** also OR-in any *same-category* attack — held at press **or pressed during the move**
-  (added the instant you hit it, so e.g. hold ←, press 46 LP + HP → first frame is already `6 + LP+HP`):
-  46 LP/MP→punches, 46 HK/MK→kicks. The `1 or 3`, `28`, `Reversal KKK`, and `Anti Air 4MK` moves use a fixed ender (no add).
+- **46 LP/MP** and **28 HK/LK/LKMK**: a held attack **replaces** the default ender (read live, held at press
+  *or* pressed during the move — added the instant you hit it). 46 LP/MP read **punches**; 28 reads **any attack**.
+  Nothing held → the default. (46 MP also has a 1-frame forward lead-in for cleaner attack detection.)
+  `1 or 3`, `Reversal KKK`, `Anti Air 4MK` use a fixed ender (no read).
 - **Anti Air 4MK** does NOT mirror — it outputs the side you're *actually* holding (←→4, →→6; 1→4, 3→6 with ↓ dropped) + MK.
-- **28 ×** are charge moves: you must already be **holding ↓** (1/2/3 all count). If no ↓ is held,
-  nothing comes out — the firmware just fires `8+attack` to cash in your charge.
+- **Charge moves** — **46\*** (back-charge) need a held **←/→** and **28\*** (down-charge) need a held **↓**,
+  each held **continuously ≥ 45 frames (~750ms)** before the press (1/2/3 all count as ↓; ←/↙/↖ all count as ←).
+  Not charged long enough → the move does **nothing** (no stray output). The 45f is real-time and configurable
+  (`CHARGE_FRAMES`). The charge is **consumed on fire** — after the move comes out its timer resets, so even if you
+  keep holding the direction you must **re-charge ~45f** before the next one (matches a real charge move; no spam-whiffs).
 - **Air Throw / JMP** don't gate: with no ←/→ they jump straight up (`↑`) instead of toward the opponent.
 
 ---

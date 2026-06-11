@@ -12,6 +12,11 @@
 #define SUPER_STEP_FRAMES_MIN 1
 #define SUPER_STEP_FRAMES_MAX 2
 
+// Charge moves (46* back-charge, 28* down-charge): the charge direction must be held this long
+// (continuous, real-time) before the press, else the move doesn't fire. - clcy
+#define CHARGE_FRAMES 45
+#define CHARGE_US     ((uint64_t)CHARGE_FRAMES * SUPER_FRAME_US)   // ~750ms
+
 // "Reverse 23626 LP/LK" super = shared opening 21346 + a tail chosen at the end of the opening.
 // Steps are absolute dpad bits (no mirror); see the super block in process() for the full logic. - clcy
 static const uint16_t SUPER_OPEN[]  = {                       // 21346 (shared opening)
@@ -72,6 +77,7 @@ static inline uint64_t superRandStepUs(uint32_t& rng) {
 #define A_LK GAMEPAD_MASK_B3
 #define A_MK GAMEPAD_MASK_B4
 #define A_HK GAMEPAD_MASK_L1
+#define A_ALL (A_LP | A_MP | A_HP | A_LK | A_MK | A_HK)   // all six attacks - clcy
 
 struct MotionStep { uint16_t dpad; uint8_t minF; uint8_t maxF; };
 struct MotionDef  { GpioAction action; const MotionStep* steps; uint8_t count; uint16_t defaultEnder; };
@@ -80,6 +86,8 @@ static const MotionStep ST_236[]   = { {D_N,2,2}, {D_2,2,3}, {D_3,2,3}, {D_6,2,3
 static const MotionStep ST_214[]   = { {D_N,2,2}, {D_2,2,3}, {D_1,2,3}, {D_4,2,3} };   // 5214: leading 回中 (neutral 2f) then 214, each dir 2-3f
 static const MotionStep ST_6214[]  = { {D_6,2,3}, {D_2,2,3}, {D_1,2,3}, {D_4,2,3} };   // 6214 HCB (each step 2-3f)
 static const MotionStep ST_4236[]  = { {D_4,2,3}, {D_2,2,3}, {D_3,2,3}, {D_6,2,3} };   // 4236 HCB (each step 2-3f)
+static const MotionStep ST_6214_LP[] = { {D_6,1,2}, {D_2,1,2}, {D_1,1,2}, {D_4,2,2} }; // 6214 LP: 6,2,1 each 1-2f, attack on the last dir (4) for a fixed 2f
+static const MotionStep ST_4236_LP[] = { {D_4,1,2}, {D_2,1,2}, {D_3,1,2}, {D_6,2,2} }; // 4236 LP: 4,2,3 each 1-2f, attack on the last dir (6) for a fixed 2f
 static const MotionStep ST_623[]   = { {D_1,1,2}, {D_3,1,2}, {D_1,1,2}, {D_3,1,2}, {D_1,2,3} };
 static const MotionStep ST_623HP[] = { {D_1,1,1}, {D_3,1,1}, {D_1,1,1}, {D_3,1,1}, {D_1,1,3} }; // steps 1f, last 1-3f
 static const MotionStep ST_21346[] = { {D_2,1,2}, {D_1,1,2}, {D_3,1,2}, {D_4,1,2}, {D_6,2,3} };
@@ -93,10 +101,12 @@ static const MotionStep ST_3K[]    = { {D_N,2,2} };              // KKK: neutral
 static const MotionDef MOTION_DEFS[] = {
     { GpioAction::BUTTON_PRESS_QCR_236,    ST_236,   4, 0 },
     { GpioAction::BUTTON_PRESS_QCR_214,    ST_214,   4, 0 },
-    { GpioAction::BUTTON_PRESS_6214_HCB,   ST_6214,  4, 0 },
-    { GpioAction::BUTTON_PRESS_6214_LP,    ST_6214,  4, A_LP },
-    { GpioAction::BUTTON_PRESS_4236_HCB,   ST_4236,  4, 0 },
-    { GpioAction::BUTTON_PRESS_4236_LP,    ST_4236,  4, A_LP },
+    { GpioAction::BUTTON_PRESS_BISON_5236_LK, ST_236, 4, A_LK },
+    { GpioAction::BUTTON_PRESS_BISON_5214_LK, ST_214, 4, A_LK },
+    { GpioAction::BUTTON_PRESS_6214_HCB,   ST_6214,    4, 0 },
+    { GpioAction::BUTTON_PRESS_6214_LP,    ST_6214_LP, 4, A_LP },
+    { GpioAction::BUTTON_PRESS_4236_HCB,   ST_4236,    4, 0 },
+    { GpioAction::BUTTON_PRESS_4236_LP,    ST_4236_LP, 4, A_LP },
     { GpioAction::BUTTON_PRESS_623_LP,     ST_623,   5, A_LP },
     { GpioAction::BUTTON_PRESS_623_MP,     ST_623,   5, A_MP },
     { GpioAction::BUTTON_PRESS_623_HP,     ST_623HP, 5, A_HP },
@@ -130,19 +140,24 @@ static_assert(MOTION_COUNT <= REVERSE_MOTION_MAX, "increase REVERSE_MOTION_MAX")
 // Unlike the fixed MOTION_DEFS above, these SAMPLE a held direction at press and act on it. Most MIRROR
 // the held horizontal: you hold "back", we output "forward" (hold ←/↙/↖ -> 6, hold →/↘/↗ -> 4; the 1/3
 // moves add DOWN -> the ↓-forward diagonal 3/1). Gate options (GATE_*): HORIZ needs a held ←/→, DOWN needs
-// a held ↓ (the 28 charge moves: player is already charging -> just fire 8+attack), NONE never gates (the
-// jumps: no direction -> straight up). Each plays 1-2 fixed steps, a random [minF,maxF] frames per step;
-// the attack fires on its step. 46 LP also OR-s in any PUNCH held at press (46 HK/MK any KICK). Lives in process().
+// a held ↓, NONE never gates (jumps: no direction -> straight up). HORIZ_CHG / DOWN_CHG additionally require a
+// real CHARGE (the held ←/→ or ↓ held >= CHARGE_FRAMES ~45f) — used by the 46* (back-charge) and 28* (down-charge).
+// The charge is CONSUMED on fire (its timer resets) so you must re-charge before the next one.
+// Each plays 1-2 fixed steps, a random [minF,maxF] frames per step;
+// the attack fires on its step. A held attack in the move's addCat REPLACES the base (46: same-category;
+// 28: any attack); none held -> the base. Lives in process().
 #define DSF_UP   0x1u   // step includes UP
 #define DSF_FWD  0x2u   // step includes the (mirrored) forward horizontal
 #define DSF_DOWN 0x4u   // step includes DOWN (so FWD+DOWN = the 1/3 down-forward diagonal)
 #define DSF_FWD_RAW 0x8u  // step includes the held horizontal AS-IS (no mirror, vertical stripped; Anti Air 4MK)
 
-#define GATE_NONE  0    // no gate (jumps: no direction -> straight up)
-#define GATE_HORIZ 1    // require a held ←/→ at press (mirror to forward), else don't fire
-#define GATE_DOWN  2    // require a held ↓ at press (28 charge moves: player already charging), else don't fire
+#define GATE_NONE      0    // no gate (jumps: no direction -> straight up)
+#define GATE_HORIZ     1    // require a held ←/→ at press (mirror to forward), else don't fire
+#define GATE_DOWN      2    // require a held ↓ at press, else don't fire
+#define GATE_HORIZ_CHG 3    // GATE_HORIZ + the held ←/→ must be CHARGED >= CHARGE_FRAMES (46* back-charge)
+#define GATE_DOWN_CHG  4    // GATE_DOWN  + ↓ must be CHARGED >= CHARGE_FRAMES (28* down-charge)
 
-struct DirStep { uint8_t flags; uint16_t attack; };   // attack: buttons pressed this step (0 = none)
+struct DirStep { uint8_t flags; uint16_t attack; uint8_t minF; uint8_t maxF; };   // attack: buttons this step (0=none); minF/maxF: per-step frames (0 -> use the move's range) - clcy
 struct DirMoveDef {
     GpioAction     action;
     uint8_t        gate;     // GATE_NONE / GATE_HORIZ / GATE_DOWN
@@ -154,9 +169,7 @@ struct DirMoveDef {
 };
 
 static const DirStep ST_46LP[]     = { { DSF_FWD, A_LP } };                                 // forward + LP
-static const DirStep ST_46MP[]     = { { DSF_FWD, A_MP } };                                 // forward + MP
-static const DirStep ST_46HK[]     = { { DSF_FWD, A_HK } };                                 // forward + HK
-static const DirStep ST_46MK[]     = { { DSF_FWD, A_MK } };                                 // forward + MK
+static const DirStep ST_46MP[]     = { { DSF_FWD, 0, 1, 1 }, { DSF_FWD, A_MP } };           // 46 MP: 1f forward lead (detect attack), then forward + MP
 static const DirStep ST_13HP[]     = { { DSF_FWD | DSF_DOWN, A_HP } };                       // ↓-forward (1/3) + HP
 static const DirStep ST_13HK[]     = { { DSF_FWD | DSF_DOWN, A_HK } };                       // ↓-forward (1/3) + HK
 static const DirStep ST_28HK[]     = { { DSF_UP, A_HK } };                                   // 8 (up) + HK   (charge: needs held ↓)
@@ -168,19 +181,17 @@ static const DirStep ST_KKK[]      = { { DSF_FWD, A_LK | A_MK | A_HK } };       
 static const DirStep ST_AA4MK[]    = { { DSF_FWD_RAW, A_MK } };                              // held ←/→ as-is (↓ stripped, no mirror) + MK
 
 static const DirMoveDef DIR_MOVE_DEFS[] = {
-    { GpioAction::BUTTON_PRESS_46_LP,        GATE_HORIZ, (uint16_t)(A_LP | A_MP | A_HP), ST_46LP,     1, 2, 3 },
-    { GpioAction::BUTTON_PRESS_46_MP,        GATE_HORIZ, (uint16_t)(A_LP | A_MP | A_HP), ST_46MP,     1, 2, 3 },
-    { GpioAction::BUTTON_PRESS_46_HK,        GATE_HORIZ, (uint16_t)(A_LK | A_MK | A_HK), ST_46HK,     1, 2, 3 },
-    { GpioAction::BUTTON_PRESS_46_MK,        GATE_HORIZ, (uint16_t)(A_LK | A_MK | A_HK), ST_46MK,     1, 2, 3 },
-    { GpioAction::BUTTON_PRESS_13_HP,        GATE_HORIZ, 0,                              ST_13HP,     1, 3, 4 },
-    { GpioAction::BUTTON_PRESS_13_HK,        GATE_HORIZ, 0,                              ST_13HK,     1, 3, 4 },
-    { GpioAction::BUTTON_PRESS_28_HK,        GATE_DOWN,  0,                              ST_28HK,     1, 2, 3 },
-    { GpioAction::BUTTON_PRESS_28_LK,        GATE_DOWN,  0,                              ST_28LK,     1, 2, 3 },
-    { GpioAction::BUTTON_PRESS_28_LKMK,      GATE_DOWN,  0,                              ST_28LKMK,   1, 2, 3 },
-    { GpioAction::BUTTON_PRESS_AIR_THROW,    GATE_NONE,  0,                              ST_AIRTHROW, 2, 2, 3 },
-    { GpioAction::BUTTON_PRESS_JMP,          GATE_NONE,  0,                              ST_JMP,      2, 2, 3 },
-    { GpioAction::BUTTON_PRESS_REVERSAL_KKK, GATE_HORIZ, 0,                              ST_KKK,      1, 2, 3 },
-    { GpioAction::BUTTON_PRESS_ANTI_AIR_4MK, GATE_HORIZ, 0,                              ST_AA4MK,    1, 2, 3 },
+    { GpioAction::BUTTON_PRESS_46_LP,        GATE_HORIZ_CHG, (uint16_t)(A_LP | A_MP | A_HP), ST_46LP,     1, 2, 3 },
+    { GpioAction::BUTTON_PRESS_46_MP,        GATE_HORIZ_CHG, (uint16_t)(A_LP | A_MP | A_HP), ST_46MP,     2, 2, 3 },
+    { GpioAction::BUTTON_PRESS_13_HP,        GATE_HORIZ,     0,                              ST_13HP,     1, 3, 4 },
+    { GpioAction::BUTTON_PRESS_13_HK,        GATE_HORIZ,     0,                              ST_13HK,     1, 3, 4 },
+    { GpioAction::BUTTON_PRESS_28_HK,        GATE_DOWN_CHG,  (uint16_t)A_ALL,                ST_28HK,     1, 2, 3 },
+    { GpioAction::BUTTON_PRESS_28_LK,        GATE_DOWN_CHG,  (uint16_t)A_ALL,                ST_28LK,     1, 2, 3 },
+    { GpioAction::BUTTON_PRESS_28_LKMK,      GATE_DOWN_CHG,  (uint16_t)A_ALL,                ST_28LKMK,   1, 2, 3 },
+    { GpioAction::BUTTON_PRESS_AIR_THROW,    GATE_NONE,      0,                              ST_AIRTHROW, 2, 2, 3 },
+    { GpioAction::BUTTON_PRESS_JMP,          GATE_NONE,      0,                              ST_JMP,      2, 2, 3 },
+    { GpioAction::BUTTON_PRESS_REVERSAL_KKK, GATE_HORIZ,     0,                              ST_KKK,      1, 2, 3 },
+    { GpioAction::BUTTON_PRESS_ANTI_AIR_4MK, GATE_HORIZ,     0,                              ST_AA4MK,    1, 2, 3 },
 };
 static const int DIR_MOVE_COUNT = (int)(sizeof(DIR_MOVE_DEFS) / sizeof(DIR_MOVE_DEFS[0]));
 static_assert(DIR_MOVE_COUNT <= REVERSE_DIRMOVE_MAX, "increase REVERSE_DIRMOVE_MAX");
@@ -203,6 +214,8 @@ void ReverseInput::setup()
     mapChargeHP = new GamepadButtonMapping(0);
     mapSuperLP = new GamepadButtonMapping(0);
     mapSuperLK = new GamepadButtonMapping(0);
+    mapSuperLPNew = new GamepadButtonMapping(0);
+    mapSuperLKNew = new GamepadButtonMapping(0);
 
     GpioMappingInfo* pinMappings = Storage::getInstance().getProfilePinMappings();
     for (Pin_t pin = 0; pin < (Pin_t)NUM_BANK0_GPIOS; pin++)
@@ -212,6 +225,8 @@ void ReverseInput::setup()
             case GpioAction::BUTTON_PRESS_623_HP_CHARGE: mapChargeHP->pinMask |= 1 << pin; break;
             case GpioAction::BUTTON_PRESS_SUPER_LP: mapSuperLP->pinMask |= 1 << pin; break;
             case GpioAction::BUTTON_PRESS_SUPER_LK: mapSuperLK->pinMask |= 1 << pin; break;
+            case GpioAction::BUTTON_PRESS_SUPER_LP_NEW: mapSuperLPNew->pinMask |= 1 << pin; break;
+            case GpioAction::BUTTON_PRESS_SUPER_LK_NEW: mapSuperLKNew->pinMask |= 1 << pin; break;
             default:    break;
         }
     }
@@ -261,12 +276,15 @@ void ReverseInput::setup()
     superEnderMask = 0;
     prevSuperLP = false;
     prevSuperLK = false;
+    prevSuperLPNew = false;
+    prevSuperLKNew = false;
     superDirPending = false;
     superStepDurationUs = 0;
     superRng = 0;
     superDivert = false;
     superTailType = 0;
     superDirLatch = 0;
+    superDivertEnder = 0;
 
     // General motion-button state + pin masks (scan every motion action) - clcy
     motionActive = false;
@@ -301,6 +319,9 @@ void ReverseInput::setup()
     chargeStepStartTime = 0;
     chargeStepDurationUs = 0;
     chargePrev = false;
+    holdStartLeft = 0;
+    holdStartRight = 0;
+    holdStartDown = 0;
     for (int i = 0; i < DIR_MOVE_COUNT; i++) {
         dirPinMask[i] = 0;
         dirPrev[i] = false;
@@ -327,6 +348,8 @@ void ReverseInput::reinit() {
     delete mapChargeHP;
     delete mapSuperLP;
     delete mapSuperLK;
+    delete mapSuperLPNew;
+    delete mapSuperLKNew;
     setup();
 }
 
@@ -348,6 +371,14 @@ void ReverseInput::process()
     // temporary raw dpad storage - cliu55
     uint16_t rawDpad = gamepad->state.dpad;
     uint16_t rawButtons = gamepad->state.buttons;   // player's held buttons, before reverse remapping - clcy
+
+    // ---- Charge tracking: continuous hold of 4/6/2 (wall-clock; 0 = released) for the 46*/28* charge gates - clcy ----
+    {
+        uint64_t nowC = getMicro();
+        if (rawDpad & GAMEPAD_MASK_LEFT)  { if (!holdStartLeft)  holdStartLeft  = (nowC ? nowC : 1); } else holdStartLeft  = 0;
+        if (rawDpad & GAMEPAD_MASK_RIGHT) { if (!holdStartRight) holdStartRight = (nowC ? nowC : 1); } else holdStartRight = 0;
+        if (rawDpad & GAMEPAD_MASK_DOWN)  { if (!holdStartDown)  holdStartDown  = (nowC ? nowC : 1); } else holdStartDown  = 0;
+    }
 
     // Drive Reversal (gated): only acts when a ←/→ is held (no horizontal -> does nothing). It inverts
     // the dpad (via input() below) and presses L2. - clcy
@@ -379,18 +410,25 @@ void ReverseInput::process()
         Mask_t superGpio = gamepad->debouncedGpio;
         bool superLPpressed = mapSuperLP->pinMask && (superGpio & mapSuperLP->pinMask);
         bool superLKpressed = mapSuperLK->pinMask && (superGpio & mapSuperLK->pinMask);
+        bool superLPNewPressed = mapSuperLPNew->pinMask && (superGpio & mapSuperLPNew->pinMask);
+        bool superLKNewPressed = mapSuperLKNew->pinMask && (superGpio & mapSuperLKNew->pinMask);
         uint64_t nowUs = getMicro();
 
         if (!superActive && !motionActive && !dirActive && !chargeActive) {
             bool risingLP = superLPpressed && !prevSuperLP;
             bool risingLK = superLKpressed && !prevSuperLK;
-            if (risingLP || risingLK) {
+            bool risingLPNew = superLPNewPressed && !prevSuperLPNew;
+            bool risingLKNew = superLKNewPressed && !prevSuperLKNew;
+            if (risingLP || risingLK || risingLPNew || risingLKNew) {
+                bool isLP  = risingLP || risingLPNew;    // LP-family (else LK-family)
+                bool isNew = risingLPNew || risingLKNew; // the (NEW) flip variants
                 superActive = true;
                 superStep = 0;
                 superStepStartTime = nowUs;
                 superStepDurationUs = SUPER_FRAME_US;       // opening steps are 1 frame
                 superTailType = 0;                          // 0 = playing the 21346 opening / tail undecided
-                superEnderDefault = risingLP ? mapButtonB1->buttonMask : mapButtonB3->buttonMask;
+                superEnderDefault = isLP ? mapButtonB1->buttonMask : mapButtonB3->buttonMask;   // LP/LK for the direction tails
+                superDivertEnder  = isNew ? (isLP ? mapButtonB3->buttonMask : mapButtonB1->buttonMask) : 0;  // (NEW): attack-divert flips (LP->LK, LK->LP); 0 = use the pressed attack
                 superEnderMask = rawButtons & superAttackMask;                       // watch attacks (from press)
                 superDirLatch  = rawDpad & (GAMEPAD_MASK_LEFT | GAMEPAD_MASK_RIGHT);  // watch direction (from press)
             }
@@ -411,7 +449,7 @@ void ReverseInput::process()
                     // 21346 finished -> choose the tail (reuses the opening, no restart):
                     if (superEnderMask) {                               // ANY attack -> divert
                         superTailType = 1;                              // +246 = 21346246
-                        // ender = the exact attack(s) the player pressed (kept in superEnderMask) - clcy
+                        if (superDivertEnder) superEnderMask = superDivertEnder;   // (NEW) variants: flip to LP/LK; else keep the pressed attack(s) - clcy
                     } else if (superDirLatch & GAMEPAD_MASK_LEFT) {     // held 4 -> +26 = 2134626
                         superTailType = 2; superEnderMask = superEnderDefault;
                     } else if (superDirLatch & GAMEPAD_MASK_RIGHT) {    // held 6 -> +24 = 2134624
@@ -438,6 +476,8 @@ void ReverseInput::process()
 
         prevSuperLP = superLPpressed;
         prevSuperLK = superLKpressed;
+        prevSuperLPNew = superLPNewPressed;
+        prevSuperLKNew = superLKNewPressed;
     }
 
     // ---- Hardcoded-motion buttons (236/214 QCR, 6214/4236 HCB, 623*, 21346*, 22*, 2HP) - clcy ----
@@ -490,13 +530,15 @@ void ReverseInput::process()
                                md.action == GpioAction::BUTTON_PRESS_21346_HK) {
                         uint16_t kicks = pressedNow & (A_LK | A_MK | A_HK);
                         if (kicks) ender = kicks;                       // 21346 LK/HK: a held kick overrides the default
-                    } else if (md.action == GpioAction::BUTTON_PRESS_21346_LP ||
-                               md.action == GpioAction::BUTTON_PRESS_6214_LP ||
-                               md.action == GpioAction::BUTTON_PRESS_4236_LP) {
+                    } else if (md.action == GpioAction::BUTTON_PRESS_21346_LP) {
                         uint16_t kicks = pressedNow & (A_LK | A_MK | A_HK);
-                        ender = kicks ? kicks : (md.defaultEnder | pressedNow);  // 21346/6214/4236 LP: a held KICK replaces LP (kick only); else LP + held PUNCH (add)
-                    } else if (md.action == GpioAction::BUTTON_PRESS_22_LP) {
-                        if (pressedNow) ender = pressedNow;             // 22 LP: a held attack replaces LP
+                        ender = kicks ? kicks : (md.defaultEnder | pressedNow);  // 21346 LP: a held KICK replaces LP (kick only); else LP + held PUNCH (add)
+                    } else if (md.action == GpioAction::BUTTON_PRESS_22_LP ||
+                               md.action == GpioAction::BUTTON_PRESS_6214_LP ||
+                               md.action == GpioAction::BUTTON_PRESS_4236_LP ||
+                               md.action == GpioAction::BUTTON_PRESS_BISON_5236_LK ||
+                               md.action == GpioAction::BUTTON_PRESS_BISON_5214_LK) {
+                        if (pressedNow) ender = pressedNow;             // 22/6214/4236 LP + Bison 5236/5214 LK: held attack(s) REPLACE the default; else default
                     }
                     gamepad->state.buttons |= ender;
                 }
@@ -516,6 +558,9 @@ void ReverseInput::process()
     {
         Mask_t dGpio = gamepad->debouncedGpio;
         uint64_t nowUs = getMicro();
+        bool chgL = holdStartLeft  && (nowUs - holdStartLeft)  >= CHARGE_US;   // ← charged >= CHARGE_FRAMES
+        bool chgR = holdStartRight && (nowUs - holdStartRight) >= CHARGE_US;   // → charged >= CHARGE_FRAMES
+        bool chgD = holdStartDown  && (nowUs - holdStartDown)  >= CHARGE_US;   // ↓ charged >= CHARGE_FRAMES
 
         if (!dirActive && !motionActive && !superActive && !chargeActive) {
             for (int i = 0; i < DIR_MOVE_COUNT; i++) {
@@ -525,16 +570,23 @@ void ReverseInput::process()
                     uint16_t fwd = 0;                                  // mirror: held back -> forward
                     if (rawDpad & GAMEPAD_MASK_LEFT)       fwd = GAMEPAD_MASK_RIGHT;
                     else if (rawDpad & GAMEPAD_MASK_RIGHT) fwd = GAMEPAD_MASK_LEFT;
-                    if (dm.gate == GATE_HORIZ && fwd == 0) continue;                        // need a held ←/→
-                    if (dm.gate == GATE_DOWN  && !(rawDpad & GAMEPAD_MASK_DOWN)) continue;   // 28*: need a held ↓
+                    if (dm.gate == GATE_HORIZ && fwd == 0) continue;                          // need a held ←/→
+                    if (dm.gate == GATE_DOWN  && !(rawDpad & GAMEPAD_MASK_DOWN)) continue;     // need a held ↓
+                    if (dm.gate == GATE_HORIZ_CHG && (fwd == 0 || !((rawDpad & GAMEPAD_MASK_LEFT) ? chgL : chgR))) continue;  // 46*: held ←/→ charged >= 45f
+                    if (dm.gate == GATE_DOWN_CHG  && (!(rawDpad & GAMEPAD_MASK_DOWN) || !chgD)) continue;                     // 28*: held ↓ charged >= 45f
                     dirActive = true;
                     dirWhich = i;
                     dirStep = 0;
                     dirStepStartTime = nowUs;
-                    dirStepDurationUs = randStepUs(superRng, dm.minF, dm.maxF);
+                    dirStepDurationUs = randStepUs(superRng, dm.steps[dirStep].minF ? dm.steps[dirStep].minF : dm.minF, dm.steps[dirStep].maxF ? dm.steps[dirStep].maxF : dm.maxF);
                     dirForward = fwd;
                     dirHeld = rawDpad & (GAMEPAD_MASK_LEFT | GAMEPAD_MASK_RIGHT);   // raw, no mirror (Anti Air 4MK)
                     dirAddedAttack = dm.addCat ? (rawButtons & dm.addCat) : 0;
+                    if (dm.gate == GATE_HORIZ_CHG) {                            // consume the charge -> must re-charge before the next one
+                        if (rawDpad & GAMEPAD_MASK_LEFT) holdStartLeft = nowUs; else holdStartRight = nowUs;
+                    } else if (dm.gate == GATE_DOWN_CHG) {
+                        holdStartDown = nowUs;
+                    }
                     break;   // one move at a time
                 }
             }
@@ -547,7 +599,7 @@ void ReverseInput::process()
                 dirStep++;
                 dirStepStartTime = nowUs;
                 if (dirStep < dm.count) {
-                    dirStepDurationUs = randStepUs(superRng, dm.minF, dm.maxF);
+                    dirStepDurationUs = randStepUs(superRng, dm.steps[dirStep].minF ? dm.steps[dirStep].minF : dm.minF, dm.steps[dirStep].maxF ? dm.steps[dirStep].maxF : dm.maxF);
                 } else {
                     dirActive = false;
                 }
@@ -561,7 +613,7 @@ void ReverseInput::process()
                 if (s.flags & DSF_FWD_RAW) outDpad |= dirHeld;
                 gamepad->state.dpad = outDpad;                    // exclusive (mirror handled at press)
                 gamepad->state.buttons &= ~superAttackMask;       // suppress held attacks during the move
-                if (s.attack) gamepad->state.buttons |= (s.attack | dirAddedAttack);   // attack on its step
+                if (s.attack) gamepad->state.buttons |= (dirAddedAttack ? dirAddedAttack : s.attack);   // held attack(s) REPLACE the base; else base
             }
         }
 

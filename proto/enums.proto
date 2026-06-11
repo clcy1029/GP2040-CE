@@ -366,7 +366,7 @@ enum GpioAction
     BUTTON_PRESS_MACRO_9         = 133;
     BUTTON_PRESS_MACRO_10        = 134;
     BUTTON_PRESS_46_LP           = 135;
-    BUTTON_PRESS_46_HK           = 136;
+    reserved 136;  // removed 46 HK
     BUTTON_PRESS_AIR_THROW       = 137;
     BUTTON_PRESS_JMP             = 138;
     reserved 139;  // retired (was REVERSE_EXTRA_5, briefly Drive Reversal G)
@@ -391,7 +391,7 @@ enum GpioAction
     BUTTON_PRESS_2_HP            = 158;
     BUTTON_PRESS_21346246_LK     = 159;
     BUTTON_PRESS_21346246_LP     = 160;
-    BUTTON_PRESS_46_MK           = 161;
+    reserved 161;  // removed 46 MK
     BUTTON_PRESS_REVERSAL_KKK    = 162;
     BUTTON_PRESS_6214_HCB        = 163;
     BUTTON_PRESS_4236_HCB        = 164;
@@ -413,6 +413,10 @@ enum GpioAction
     BUTTON_PRESS_4236_LP         = 180;
     BUTTON_PRESS_2PP             = 181;
     BUTTON_PRESS_KKK             = 182;
+    BUTTON_PRESS_SUPER_LP_NEW    = 183;
+    BUTTON_PRESS_SUPER_LK_NEW    = 184;
+    BUTTON_PRESS_BISON_5236_LK   = 185;
+    BUTTON_PRESS_BISON_5214_LK   = 186;
 }
 
 enum GpioDirection

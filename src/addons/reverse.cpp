@@ -82,8 +82,8 @@ static inline uint64_t superRandStepUs(uint32_t& rng) {
 struct MotionStep { uint16_t dpad; uint8_t minF; uint8_t maxF; };
 struct MotionDef  { GpioAction action; const MotionStep* steps; uint8_t count; uint16_t defaultEnder; };
 
-static const MotionStep ST_236[]   = { {D_N,2,2}, {D_2,2,3}, {D_3,2,3}, {D_6,2,3} };   // 5236: leading 回中 (neutral 2f) then 236, each dir 2-3f
-static const MotionStep ST_214[]   = { {D_N,2,2}, {D_2,2,3}, {D_1,2,3}, {D_4,2,3} };   // 5214: leading 回中 (neutral 2f) then 214, each dir 2-3f
+static const MotionStep ST_236[]   = { {D_N,1,1}, {D_2,2,3}, {D_3,2,3}, {D_6,2,3} };   // 5236: leading 回中 (neutral 1f) then 236, each dir 2-3f
+static const MotionStep ST_214[]   = { {D_N,1,1}, {D_2,2,3}, {D_1,2,3}, {D_4,2,3} };   // 5214: leading 回中 (neutral 1f) then 214, each dir 2-3f
 static const MotionStep ST_6214[]  = { {D_6,2,3}, {D_2,2,3}, {D_1,2,3}, {D_4,2,3} };   // 6214 HCB (each step 2-3f)
 static const MotionStep ST_4236[]  = { {D_4,2,3}, {D_2,2,3}, {D_3,2,3}, {D_6,2,3} };   // 4236 HCB (each step 2-3f)
 static const MotionStep ST_6214_LP[] = { {D_6,1,2}, {D_2,1,2}, {D_1,1,2}, {D_4,2,2} }; // 6214 LP: 6,2,1 each 1-2f, attack on the last dir (4) for a fixed 2f
@@ -93,7 +93,7 @@ static const MotionStep ST_623HP[] = { {D_1,1,1}, {D_3,1,1}, {D_1,1,1}, {D_3,1,1
 static const MotionStep ST_21346[] = { {D_2,1,2}, {D_1,1,2}, {D_3,1,2}, {D_4,1,2}, {D_6,2,3} };
 static const MotionStep ST_21346246[] = { {D_2,1,1},{D_1,1,1},{D_3,1,1},{D_4,1,1},{D_6,1,1},{D_2,1,1},{D_4,1,1},{D_6,1,1} }; // all 1 frame
 static const MotionStep ST_214236[]   = { {D_2,1,1}, {D_1,1,1}, {D_4,1,1}, {D_2,1,1}, {D_3,1,1}, {D_6,2,2} }; // 214236: each step 1f, last (attack) 2f
-static const MotionStep ST_22[]    = { {D_N,1,2}, {D_2,1,2}, {D_N,1,2}, {D_2,2,3} };
+static const MotionStep ST_22[]    = { {D_N,2,2}, {D_2,2,2}, {D_N,2,2}, {D_2,2,3} };
 static const MotionStep ST_2HP[]   = { {D_2,4,4} };              // single step, 4 frames
 static const MotionStep ST_2PP[]   = { {D_2,2,2} };              // 2PP: down + LP+MP, 2 frames
 static const MotionStep ST_3K[]    = { {D_N,2,2} };              // KKK: neutral + LK+MK+HK, 2 frames (ignores all input)
@@ -128,6 +128,8 @@ static const MotionDef MOTION_DEFS[] = {
     { GpioAction::BUTTON_PRESS_22_LKMK,    ST_22,    4, A_LK | A_MK },
     { GpioAction::BUTTON_PRESS_22_LK,      ST_22,    4, A_LK },
     { GpioAction::BUTTON_PRESS_22_LP,      ST_22,    4, A_LP },
+    { GpioAction::BUTTON_PRESS_22_HP,      ST_22,    4, A_HP },
+    { GpioAction::BUTTON_PRESS_22_MP,      ST_22,    4, A_MP },
     { GpioAction::BUTTON_PRESS_22,         ST_22,    4, 0 },
     { GpioAction::BUTTON_PRESS_2_HP,       ST_2HP,   1, A_HP },
     { GpioAction::BUTTON_PRESS_2PP,        ST_2PP,   1, A_LP | A_MP },
@@ -179,6 +181,7 @@ static const DirStep ST_AIRTHROW[] = { { DSF_UP | DSF_FWD, 0 }, { DSF_FWD, A_LK 
 static const DirStep ST_JMP[]      = { { DSF_UP | DSF_FWD, 0 }, { DSF_FWD, A_MP } };         // jump-in, then MP
 static const DirStep ST_KKK[]      = { { DSF_FWD, A_LK | A_MK | A_HK } };                    // forward + LK+MK+HK (Reversal KKK)
 static const DirStep ST_AA4MK[]    = { { DSF_FWD_RAW, A_MK } };                              // held ←/→ as-is (↓ stripped, no mirror) + MK
+static const DirStep ST_AA6HK[]    = { { DSF_FWD, A_HK } };                                  // forward (mirror held back) + HK — Anti Air 6 HK (needs a held ←/→)
 
 static const DirMoveDef DIR_MOVE_DEFS[] = {
     { GpioAction::BUTTON_PRESS_46_LP,        GATE_HORIZ_CHG, (uint16_t)(A_LP | A_MP | A_HP), ST_46LP,     1, 2, 3 },
@@ -192,6 +195,7 @@ static const DirMoveDef DIR_MOVE_DEFS[] = {
     { GpioAction::BUTTON_PRESS_JMP,          GATE_NONE,      0,                              ST_JMP,      2, 2, 3 },
     { GpioAction::BUTTON_PRESS_REVERSAL_KKK, GATE_HORIZ,     0,                              ST_KKK,      1, 2, 3 },
     { GpioAction::BUTTON_PRESS_ANTI_AIR_4MK, GATE_HORIZ,     0,                              ST_AA4MK,    1, 2, 3 },
+    { GpioAction::BUTTON_PRESS_ANTI_AIR_6HK, GATE_HORIZ,     0,                              ST_AA6HK,    1, 2, 3 },
 };
 static const int DIR_MOVE_COUNT = (int)(sizeof(DIR_MOVE_DEFS) / sizeof(DIR_MOVE_DEFS[0]));
 static_assert(DIR_MOVE_COUNT <= REVERSE_DIRMOVE_MAX, "increase REVERSE_DIRMOVE_MAX");
@@ -534,11 +538,13 @@ void ReverseInput::process()
                         uint16_t kicks = pressedNow & (A_LK | A_MK | A_HK);
                         ender = kicks ? kicks : (md.defaultEnder | pressedNow);  // 21346 LP: a held KICK replaces LP (kick only); else LP + held PUNCH (add)
                     } else if (md.action == GpioAction::BUTTON_PRESS_22_LP ||
+                               md.action == GpioAction::BUTTON_PRESS_22_HP ||
+                               md.action == GpioAction::BUTTON_PRESS_22_MP ||
                                md.action == GpioAction::BUTTON_PRESS_6214_LP ||
                                md.action == GpioAction::BUTTON_PRESS_4236_LP ||
                                md.action == GpioAction::BUTTON_PRESS_BISON_5236_LK ||
                                md.action == GpioAction::BUTTON_PRESS_BISON_5214_LK) {
-                        if (pressedNow) ender = pressedNow;             // 22/6214/4236 LP + Bison 5236/5214 LK: held attack(s) REPLACE the default; else default
+                        if (pressedNow) ender = pressedNow;             // 22 LP/HP/MP + 6214/4236 LP + Bison 5236/5214 LK: held attack(s) REPLACE the default; else default
                     }
                     gamepad->state.buttons |= ender;
                 }

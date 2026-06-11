@@ -417,6 +417,9 @@ enum GpioAction
     BUTTON_PRESS_SUPER_LK_NEW    = 184;
     BUTTON_PRESS_BISON_5236_LK   = 185;
     BUTTON_PRESS_BISON_5214_LK   = 186;
+    BUTTON_PRESS_22_HP           = 187;
+    BUTTON_PRESS_22_MP           = 188;
+    BUTTON_PRESS_ANTI_AIR_6HK    = 189;
 }
 
 enum GpioDirection

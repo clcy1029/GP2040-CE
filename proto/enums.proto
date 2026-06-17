@@ -375,7 +375,7 @@ enum GpioAction
     BUTTON_PRESS_QCR_236         = 142;
     BUTTON_PRESS_QCR_214         = 143;
     BUTTON_PRESS_623_LP          = 144;
-    BUTTON_PRESS_623_HP          = 145;
+    BUTTON_PRESS_LUKE_623_HP     = 145;
     BUTTON_PRESS_623_LPMP        = 146;
     BUTTON_PRESS_623_LK          = 147;
     BUTTON_PRESS_623_HK          = 148;
@@ -420,6 +420,12 @@ enum GpioAction
     BUTTON_PRESS_22_HP           = 187;
     BUTTON_PRESS_22_MP           = 188;
     BUTTON_PRESS_ANTI_AIR_6HK    = 189;
+    BUTTON_PRESS_BISON_46_LP     = 190;
+    BUTTON_PRESS_KEN_KK          = 191;
+    BUTTON_PRESS_623_HP          = 192;
+    BUTTON_PRESS_SUPER_23626_LK  = 193;
+    BUTTON_PRESS_SUPER_23626_LP  = 194;
+    BUTTON_PRESS_LUKE_5_HP       = 195;
 }
 
 enum GpioDirection

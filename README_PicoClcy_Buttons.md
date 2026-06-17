@@ -22,7 +22,7 @@ There are **3 move engines + Drive Reversal + macros**:
 
 ---
 
-## ① Super — `Reverse 23626 LP` / `Reverse 23626 LK` (+ `(NEW)` variants)
+## ① Super — `Reverse 23626 LP` / `Reverse 23626 LK` (+ `(NEW)` and `(NEW) 23626` variants)
 
 Press → immediately play the shared opening **`21346`** (2,1,3,4,6, 1 frame each). From the press it
 watches for **any attack** and a **held ←/→**. When the opening's final `6` finishes it picks a tail
@@ -39,6 +39,10 @@ watches for **any attack** and a **held ←/→**. When the opening's final `6` 
 - **`(NEW) Reverse 23626 LP` / `(NEW) Reverse 23626 LK`** — identical, EXCEPT the **"pressed any attack" divert** ender
   is a fixed **flip** instead of the attack you pressed: (NEW) LK → `21346246 + LP`, (NEW) LP → `21346246 + LK`
   (any attack just triggers it; the specific button doesn't matter). The no-attack ←/→ tails are unchanged (LK / LP).
+- **`(NEW) 23626 LP` / `(NEW) 23626 LK`** — same as the `(NEW) Reverse` variants (21346 opening, flipped divert ender),
+  EXCEPT the no-attack **direction→tail mapping is NOT reversed**: held **← (4)** → `2134624` (+2,4, ends back),
+  held **→ (6)** → `2134626` (+2,6, ends forward). (The `Reverse` versions do the opposite — that's the only difference.)
+  The attack-divert path (`21346246`, flipped LP/LK ender) is identical.
 - Opening steps 1 frame; the **final attack step is 2-3 frames (random)**.
 - Held attacks are suppressed during the motion so they don't leak.
 
@@ -50,6 +54,8 @@ Play a fixed numpad sequence (no mirror, no gate), to completion. Two ender styl
 - **Your attack = ender** — `236 / 214 / 6214 / 4236 / 22`: the attack you're holding **at the last step**
   comes out (sampled *only* then — a leftover/early press that's released by the last step is ignored).
 - **Fixed ender** — everything else fires its built-in attack regardless of what you press.
+  Exceptions that mix in your press: `623 LK/MK/HK` **add** any held attack on top of the default;
+  the `*LP`/`(Bison) *LK` rows **replace** their default with a held attack (see each row).
 
 | Dropdown name | Enum | Sequence | Ender |
 |---|---|---|---|
@@ -63,11 +69,12 @@ Play a fixed numpad sequence (no mirror, no gate), to completion. Two ender styl
 | 4236 LP | `BUTTON_PRESS_4236_LP` | 4,2,3,6 (atk on 6, 2f) | held attack(s) **replace LP** (multiple OK), fired on the last dir step; LP if none |
 | 623 LP | `BUTTON_PRESS_623_LP` | 623 (DP) | LP |
 | 623 MP | `BUTTON_PRESS_623_MP` | 623 (DP) | MP |
-| 623 HP | `BUTTON_PRESS_623_HP` | 623 (DP) | HP |
+| 623 HP | `BUTTON_PRESS_623_HP` | 623 (DP) | HP (random per-step frames, like 623 LP/MP) |
+| (Luke) 623 HP | `BUTTON_PRESS_LUKE_623_HP` | 1,3,1,3,1 | **HP on the last TWO steps** (3+HP then 1+HP); first 1,3,1 no attack — all 1f (total 5f) |
 | 623 LPMP | `BUTTON_PRESS_623_LPMP` | 623 (DP) | LP+MP |
-| 623 LK | `BUTTON_PRESS_623_LK` | 623 (DP) | LK |
-| 623 MK | `BUTTON_PRESS_623_MK` | 623 (DP) | MK |
-| 623 HK | `BUTTON_PRESS_623_HK` | 623 (DP) | HK |
+| 623 LK | `BUTTON_PRESS_623_LK` | 623 (DP) | LK **+ any held attack (add)** |
+| 623 MK | `BUTTON_PRESS_623_MK` | 623 (DP) | MK **+ any held attack (add)** |
+| 623 HK | `BUTTON_PRESS_623_HK` | 623 (DP) | HK **+ any held attack (add)** |
 | 623 LKMK | `BUTTON_PRESS_623_LKMK` | 623 (DP) | LK+MK |
 | 623 HP Charge | `BUTTON_PRESS_623_HP_CHARGE` | 1,3,1,3,1 | HP — **held as long as you keep the button pressed** (tap = one-shot) |
 | 21346 LP | `BUTTON_PRESS_21346_LP` | 2,1,3,4,6 | LP **+ a held punch** (MP/HP, add); but a **held kick** (LK/MK/HK) **replaces** LP (kick only) — read at the last step |
@@ -83,13 +90,17 @@ Play a fixed numpad sequence (no mirror, no gate), to completion. Two ender styl
 | 22 LKMK | `BUTTON_PRESS_22_LKMK` | 2,2 | LK+MK |
 | 22 LK | `BUTTON_PRESS_22_LK` | 2,2 | LK |
 | 22 LP | `BUTTON_PRESS_22_LP` | 2,2 | LP — **but an attack held at the last step replaces it** |
+| 22 HP | `BUTTON_PRESS_22_HP` | 2,2 | HP — **but an attack held at the last step replaces it** (any; multiple OK) |
+| 22 MP | `BUTTON_PRESS_22_MP` | 2,2 | MP — **but an attack held at the last step replaces it** (any; multiple OK) |
 | 22 | `BUTTON_PRESS_22` | 2,2 | your pressed attack |
 | Anti Air 2HP | `BUTTON_PRESS_2_HP` | 2 (crouch, 4f) | HP |
 | 2PP | `BUTTON_PRESS_2PP` | 2 (crouch, 2f) | LP+MP |
 | KKK | `BUTTON_PRESS_KKK` | (neutral, 2f) | LK+MK+HK — ignores all input (not the directional Reversal KKK) |
+| (KEN) KK | `BUTTON_PRESS_KEN_KK` | (neutral, 3f) | LK+MK — **forced neutral** (ignores direction), 3 frames |
+| (Luke) 5 HP | `BUTTON_PRESS_LUKE_5_HP` | (neutral) | **event sequence** — see ⑥ below |
 
 > `623` is played as a `1,3,1,3,1` shortcut. Per-step length is a random 1-2 frames (last attack step
-> 2-3) with overrides: `623 HP` steps = 1f + last 1-3f, `Anti Air 2HP` = 4f, `21346246` = all 1f, `214236` = 1f steps + last 2f,
+> 2-3) with overrides: `(Luke) 623 HP` = 1,3,1,3+HP,1+HP all 1f (HP on the last two steps), `Anti Air 2HP` = 4f, `21346246` = dirs 1f + last (attack) step 2-3f, `214236` = 1f steps + last 2f,
 > `5236`/`5214 QCR` = leading 回中 neutral 2f then each dir 2-3f, `6214`/`4236 HCB` = each step 2-3f.
 > **`623 HP Charge`** is special — it plays `1,3,1,3,1` (each 1-2f) then **keeps HP pressed until you
 > release** the button (the only move that holds after its sequence; while held the stick passes through).
@@ -104,6 +115,7 @@ required direction isn't held. See the mirror rule at the top.
 | Dropdown name | Enum | Gate | Output | Timing |
 |---|---|---|---|---|
 | 46 LP | `BUTTON_PRESS_46_LP` | ←/→ **charged 45f** | forward + **LP**, or a held **punch** replaces it (MP/HP→that) | 2-3f |
+| (Bison) 46 LP | `BUTTON_PRESS_BISON_46_LP` | ←/→ **charged 45f** | forward + **LP** (**1 frame**); a held attack (any) is **added** → LP+that **together** (does not replace) | 1f |
 | 46 MP | `BUTTON_PRESS_46_MP` | ←/→ **charged 45f** | **1f forward lead** (detect attack) → forward + **MP**, or a held **punch** replaces it | 1f + 2-3f |
 | 1 or 3 HP | `BUTTON_PRESS_13_HP` | needs ←/→ | ↓-forward (**3** / **1**) + **HP** | 3-4f |
 | 1 or 3 HK | `BUTTON_PRESS_13_HK` | needs ←/→ | ↓-forward (**3** / **1**) + **HK** | 3-4f |
@@ -114,12 +126,15 @@ required direction isn't held. See the mirror rule at the top.
 | JMP | `BUTTON_PRESS_JMP` | none | ① jump ↑+forward ② **MP** | 2-3f/step |
 | Reversal KKK | `BUTTON_PRESS_REVERSAL_KKK` | needs ←/→ | forward + **LK+MK+HK** (all 3 kicks) | 2-3f |
 | Anti Air 4MK | `BUTTON_PRESS_ANTI_AIR_4MK` | needs ←/→ | **held ←/→ as-is** (no mirror, ↓ stripped) + **MK** | 2-3f |
+| Anti Air 6HK | `BUTTON_PRESS_ANTI_AIR_6HK` | needs ←/→ | forward + **HK** (mirror: hold back → 6) — fixed HK, no replace | 2-3f |
 
 Notes:
 - **46 LP/MP** and **28 HK/LK/LKMK**: a held attack **replaces** the default ender (read live, held at press
   *or* pressed during the move — added the instant you hit it). 46 LP/MP read **punches**; 28 reads **any attack**.
   Nothing held → the default. (46 MP also has a 1-frame forward lead-in for cleaner attack detection.)
-  `1 or 3`, `Reversal KKK`, `Anti Air 4MK` use a fixed ender (no read).
+  `1 or 3`, `Reversal KKK`, `Anti Air 4MK`, `Anti Air 6HK` use a fixed ender (no read).
+- **`(Bison) 46 LP`** is the **ADD** version of `46 LP`: forward+**LP** fires in **1 frame**, and any held attack (any,
+  read at press *or* during the move) comes out **together with LP** (LP+that), instead of replacing it. Nothing held → just LP.
 - **Anti Air 4MK** does NOT mirror — it outputs the side you're *actually* holding (←→4, →→6; 1→4, 3→6 with ↓ dropped) + MK.
 - **Charge moves** — **46\*** (back-charge) need a held **←/→** and **28\*** (down-charge) need a held **↓**,
   each held **continuously ≥ 45 frames (~750ms)** before the press (1/2/3 all count as ↓; ←/↙/↖ all count as ←).
@@ -143,6 +158,20 @@ Notes:
 `Macro Button` + `Macro 1` … `Macro 6` — configured in the web UI (Add-ons → Input Macro). Off unless
 a macro pin is assigned. While a macro runs, the d-pad is ignored and attacks you press are deferred
 and fired together on the macro's last frame.
+
+---
+
+## ⑥ (Luke) 5 HP — event sequence (`BUTTON_PRESS_LUKE_5_HP`)
+
+Not a normal move — a timed, multi-phase sequence with a **conditional tail** (its own block in `process()`):
+
+1. **HP** — forced neutral + **HP**, **3 frames**.
+2. **Wait** — **21 frames** of neutral where **your own input passes through and runs normally** — raw stick/buttons
+   *and* the other one-button moves (5214 QCR, DPs, etc.) all work here (idle → neutral). The addon watches this window.
+3. **MK+MP tail** — forced neutral + **MK+MP**, **3 frames** — **only if you did NOTHING attacking during the wait**.
+   Pressing any punch/kick **or triggering any of our moves** during the wait **cancels** the tail (your input already came out).
+
+Total ~27 frames. Time-based (plays from the press, not hold-based). Mutually exclusive with the other engines.
 
 ---
 

@@ -90,6 +90,8 @@ private:
     GamepadButtonMapping *mapSuperLK;   // 23626 (or mirror 21424) + LK (B3)
     GamepadButtonMapping *mapSuperLPNew;   // (NEW) Reverse 23626 LP: on the attack-divert, ender flips to LK - clcy
     GamepadButtonMapping *mapSuperLKNew;   // (NEW) Reverse 23626 LK: on the attack-divert, ender flips to LP - clcy
+    GamepadButtonMapping *mapSuper23626LP;  // (NEW) 23626 LP: like mapSuperLPNew but tail follows direction (no reverse) - clcy
+    GamepadButtonMapping *mapSuper23626LK;  // (NEW) 23626 LK: like mapSuperLKNew but tail follows direction (no reverse) - clcy
     bool superActive;
     int  superStep;
     uint64_t superStepStartTime;
@@ -101,6 +103,9 @@ private:
     bool prevSuperLK;
     bool prevSuperLPNew;
     bool prevSuperLKNew;
+    bool prevSuper23626LP;
+    bool prevSuper23626LK;
+    bool superNoReverse;       // (NEW) 23626: tail follows the held direction (hold 4->24, hold 6->26) instead of reversing it - clcy
     bool superDirPending;      // late buffer: pressed before a direction -> side decided when step 0 ends
     uint64_t superStepDurationUs;  // current step's hold time (randomized 1-2 frames)
     uint32_t superRng;             // xorshift PRNG state for the per-step length randomness
@@ -144,6 +149,15 @@ private:
     uint64_t chargeStepStartTime;
     uint64_t chargeStepDurationUs;
     bool     chargePrev;
+
+    // (Luke) 5 HP event sequence: HP(3f) -> neutral wait(21f, pass user input through) -> neutral MK+MP(3f);
+    // any attack pressed during the wait cancels the MK+MP tail. Own block in process(). - clcy
+    GamepadButtonMapping *mapLuke5HP;
+    bool     luke5Active;
+    uint8_t  luke5Phase;           // 0=HP, 1=wait(pass-through), 2=MK+MP tail
+    uint64_t luke5PhaseStart;
+    bool     luke5CancelTail;      // an attack was pressed during the wait -> skip the MK+MP tail
+    bool     prevLuke5;
 
     // Continuous-hold timestamps for 4/6/2 (wall-clock; 0 = released). The 46*/28* charge gates check
     // these against CHARGE_FRAMES (real ~45-frame charge). - clcy

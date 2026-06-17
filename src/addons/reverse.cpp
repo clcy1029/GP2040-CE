@@ -17,6 +17,12 @@
 #define CHARGE_FRAMES 45
 #define CHARGE_US     ((uint64_t)CHARGE_FRAMES * SUPER_FRAME_US)   // ~750ms
 
+// (Luke) 5 HP event sequence: HP(3f) -> neutral wait(21f, pass user input through) -> neutral MK+MP(3f),
+// but any attack pressed during the wait cancels the MK+MP tail. - clcy
+#define LUKE5_HP_FRAMES   3
+#define LUKE5_WAIT_FRAMES 21
+#define LUKE5_TAIL_FRAMES 3
+
 // "Reverse 23626 LP/LK" super = shared opening 21346 + a tail chosen at the end of the opening.
 // Steps are absolute dpad bits (no mirror); see the super block in process() for the full logic. - clcy
 static const uint16_t SUPER_OPEN[]  = {                       // 21346 (shared opening)
@@ -79,7 +85,7 @@ static inline uint64_t superRandStepUs(uint32_t& rng) {
 #define A_HK GAMEPAD_MASK_L1
 #define A_ALL (A_LP | A_MP | A_HP | A_LK | A_MK | A_HK)   // all six attacks - clcy
 
-struct MotionStep { uint16_t dpad; uint8_t minF; uint8_t maxF; };
+struct MotionStep { uint16_t dpad; uint8_t minF; uint8_t maxF; uint16_t attack; };  // attack: button(s) OR'd on THIS step (0=none) — for mid-sequence presses like (Luke) 623 HP - clcy
 struct MotionDef  { GpioAction action; const MotionStep* steps; uint8_t count; uint16_t defaultEnder; };
 
 static const MotionStep ST_236[]   = { {D_N,1,1}, {D_2,2,3}, {D_3,2,3}, {D_6,2,3} };   // 5236: leading 回中 (neutral 1f) then 236, each dir 2-3f
@@ -89,14 +95,15 @@ static const MotionStep ST_4236[]  = { {D_4,2,3}, {D_2,2,3}, {D_3,2,3}, {D_6,2,3
 static const MotionStep ST_6214_LP[] = { {D_6,1,2}, {D_2,1,2}, {D_1,1,2}, {D_4,2,2} }; // 6214 LP: 6,2,1 each 1-2f, attack on the last dir (4) for a fixed 2f
 static const MotionStep ST_4236_LP[] = { {D_4,1,2}, {D_2,1,2}, {D_3,1,2}, {D_6,2,2} }; // 4236 LP: 4,2,3 each 1-2f, attack on the last dir (6) for a fixed 2f
 static const MotionStep ST_623[]   = { {D_1,1,2}, {D_3,1,2}, {D_1,1,2}, {D_3,1,2}, {D_1,2,3} };
-static const MotionStep ST_623HP[] = { {D_1,1,1}, {D_3,1,1}, {D_1,1,1}, {D_3,1,1}, {D_1,1,3} }; // steps 1f, last 1-3f
+static const MotionStep ST_623HP[] = { {D_1,1,1}, {D_3,1,1}, {D_1,1,1}, {D_3,1,1,A_HP}, {D_1,1,1} }; // (Luke) 623 HP: 1,3,1,3+HP,1+HP (last HP via ender) — all 1f, total 5f
 static const MotionStep ST_21346[] = { {D_2,1,2}, {D_1,1,2}, {D_3,1,2}, {D_4,1,2}, {D_6,2,3} };
-static const MotionStep ST_21346246[] = { {D_2,1,1},{D_1,1,1},{D_3,1,1},{D_4,1,1},{D_6,1,1},{D_2,1,1},{D_4,1,1},{D_6,1,1} }; // all 1 frame
+static const MotionStep ST_21346246[] = { {D_2,1,1},{D_1,1,1},{D_3,1,1},{D_4,1,1},{D_6,1,1},{D_2,1,1},{D_4,1,1},{D_6,2,3} }; // 21346246: dirs 1f, last (attack) step 2-3f so 6+attack registers
 static const MotionStep ST_214236[]   = { {D_2,1,1}, {D_1,1,1}, {D_4,1,1}, {D_2,1,1}, {D_3,1,1}, {D_6,2,2} }; // 214236: each step 1f, last (attack) 2f
 static const MotionStep ST_22[]    = { {D_N,2,2}, {D_2,2,2}, {D_N,2,2}, {D_2,2,3} };
 static const MotionStep ST_2HP[]   = { {D_2,4,4} };              // single step, 4 frames
 static const MotionStep ST_2PP[]   = { {D_2,2,2} };              // 2PP: down + LP+MP, 2 frames
 static const MotionStep ST_3K[]    = { {D_N,2,2} };              // KKK: neutral + LK+MK+HK, 2 frames (ignores all input)
+static const MotionStep ST_KENKK[] = { {D_N,3,3} };              // (KEN) KK: neutral + LK+MK, 3 frames (forced neutral, ignores direction)
 
 static const MotionDef MOTION_DEFS[] = {
     { GpioAction::BUTTON_PRESS_QCR_236,    ST_236,   4, 0 },
@@ -109,7 +116,8 @@ static const MotionDef MOTION_DEFS[] = {
     { GpioAction::BUTTON_PRESS_4236_LP,    ST_4236_LP, 4, A_LP },
     { GpioAction::BUTTON_PRESS_623_LP,     ST_623,   5, A_LP },
     { GpioAction::BUTTON_PRESS_623_MP,     ST_623,   5, A_MP },
-    { GpioAction::BUTTON_PRESS_623_HP,     ST_623HP, 5, A_HP },
+    { GpioAction::BUTTON_PRESS_623_HP,     ST_623,   5, A_HP },        // 623 HP: random frames like 623 LP/MP
+    { GpioAction::BUTTON_PRESS_LUKE_623_HP, ST_623HP, 5, A_HP },       // (Luke) 623 HP: 1f-per-step special timing
     { GpioAction::BUTTON_PRESS_623_LPMP,   ST_623,   5, A_LP | A_MP },
     { GpioAction::BUTTON_PRESS_623_LK,     ST_623,   5, A_LK },
     { GpioAction::BUTTON_PRESS_623_MK,     ST_623,   5, A_MK },
@@ -134,6 +142,7 @@ static const MotionDef MOTION_DEFS[] = {
     { GpioAction::BUTTON_PRESS_2_HP,       ST_2HP,   1, A_HP },
     { GpioAction::BUTTON_PRESS_2PP,        ST_2PP,   1, A_LP | A_MP },
     { GpioAction::BUTTON_PRESS_KKK,        ST_3K,    1, A_LK | A_MK | A_HK },
+    { GpioAction::BUTTON_PRESS_KEN_KK,     ST_KENKK, 1, A_LK | A_MK },
 };
 static const int MOTION_COUNT = (int)(sizeof(MOTION_DEFS) / sizeof(MOTION_DEFS[0]));
 static_assert(MOTION_COUNT <= REVERSE_MOTION_MAX, "increase REVERSE_MOTION_MAX");
@@ -168,6 +177,7 @@ struct DirMoveDef {
     uint8_t        count;
     uint8_t        minF;     // per-step hold = random [minF, maxF] frames
     uint8_t        maxF;
+    bool           addToBase;// true: held attack(s) ADD onto the base (base + held, together); false: held REPLACES the base - clcy
 };
 
 static const DirStep ST_46LP[]     = { { DSF_FWD, A_LP } };                                 // forward + LP
@@ -185,6 +195,7 @@ static const DirStep ST_AA6HK[]    = { { DSF_FWD, A_HK } };                     
 
 static const DirMoveDef DIR_MOVE_DEFS[] = {
     { GpioAction::BUTTON_PRESS_46_LP,        GATE_HORIZ_CHG, (uint16_t)(A_LP | A_MP | A_HP), ST_46LP,     1, 2, 3 },
+    { GpioAction::BUTTON_PRESS_BISON_46_LP,  GATE_HORIZ_CHG, (uint16_t)A_ALL,                ST_46LP,     1, 1, 1, true },   // forward + LP, 1 frame; ADD any held attack(s) (LP + 拳脚 together)
     { GpioAction::BUTTON_PRESS_46_MP,        GATE_HORIZ_CHG, (uint16_t)(A_LP | A_MP | A_HP), ST_46MP,     2, 2, 3 },
     { GpioAction::BUTTON_PRESS_13_HP,        GATE_HORIZ,     0,                              ST_13HP,     1, 3, 4 },
     { GpioAction::BUTTON_PRESS_13_HK,        GATE_HORIZ,     0,                              ST_13HK,     1, 3, 4 },
@@ -220,6 +231,9 @@ void ReverseInput::setup()
     mapSuperLK = new GamepadButtonMapping(0);
     mapSuperLPNew = new GamepadButtonMapping(0);
     mapSuperLKNew = new GamepadButtonMapping(0);
+    mapSuper23626LP = new GamepadButtonMapping(0);
+    mapSuper23626LK = new GamepadButtonMapping(0);
+    mapLuke5HP = new GamepadButtonMapping(0);
 
     GpioMappingInfo* pinMappings = Storage::getInstance().getProfilePinMappings();
     for (Pin_t pin = 0; pin < (Pin_t)NUM_BANK0_GPIOS; pin++)
@@ -231,6 +245,9 @@ void ReverseInput::setup()
             case GpioAction::BUTTON_PRESS_SUPER_LK: mapSuperLK->pinMask |= 1 << pin; break;
             case GpioAction::BUTTON_PRESS_SUPER_LP_NEW: mapSuperLPNew->pinMask |= 1 << pin; break;
             case GpioAction::BUTTON_PRESS_SUPER_LK_NEW: mapSuperLKNew->pinMask |= 1 << pin; break;
+            case GpioAction::BUTTON_PRESS_SUPER_23626_LP: mapSuper23626LP->pinMask |= 1 << pin; break;
+            case GpioAction::BUTTON_PRESS_SUPER_23626_LK: mapSuper23626LK->pinMask |= 1 << pin; break;
+            case GpioAction::BUTTON_PRESS_LUKE_5_HP: mapLuke5HP->pinMask |= 1 << pin; break;
             default:    break;
         }
     }
@@ -282,6 +299,9 @@ void ReverseInput::setup()
     prevSuperLK = false;
     prevSuperLPNew = false;
     prevSuperLKNew = false;
+    prevSuper23626LP = false;
+    prevSuper23626LK = false;
+    superNoReverse = false;
     superDirPending = false;
     superStepDurationUs = 0;
     superRng = 0;
@@ -323,6 +343,11 @@ void ReverseInput::setup()
     chargeStepStartTime = 0;
     chargeStepDurationUs = 0;
     chargePrev = false;
+    luke5Active = false;
+    luke5Phase = 0;
+    luke5PhaseStart = 0;
+    luke5CancelTail = false;
+    prevLuke5 = false;
     holdStartLeft = 0;
     holdStartRight = 0;
     holdStartDown = 0;
@@ -354,6 +379,9 @@ void ReverseInput::reinit() {
     delete mapSuperLK;
     delete mapSuperLPNew;
     delete mapSuperLKNew;
+    delete mapSuper23626LP;
+    delete mapSuper23626LK;
+    delete mapLuke5HP;
     setup();
 }
 
@@ -375,6 +403,10 @@ void ReverseInput::process()
     // temporary raw dpad storage - cliu55
     uint16_t rawDpad = gamepad->state.dpad;
     uint16_t rawButtons = gamepad->state.buttons;   // player's held buttons, before reverse remapping - clcy
+
+    // (Luke) 5 HP blocks the other engines ONLY while it's actively outputting (HP/MK+MP phases); during its
+    // 21f WAIT phase (luke5Phase==1) the other engines are allowed so you can do your own moves (e.g. 5214 QCR). - clcy
+    bool luke5Blocking = luke5Active && luke5Phase != 1;
 
     // ---- Charge tracking: continuous hold of 4/6/2 (wall-clock; 0 = released) for the 46*/28* charge gates - clcy ----
     {
@@ -416,16 +448,21 @@ void ReverseInput::process()
         bool superLKpressed = mapSuperLK->pinMask && (superGpio & mapSuperLK->pinMask);
         bool superLPNewPressed = mapSuperLPNew->pinMask && (superGpio & mapSuperLPNew->pinMask);
         bool superLKNewPressed = mapSuperLKNew->pinMask && (superGpio & mapSuperLKNew->pinMask);
+        bool super23626LPpressed = mapSuper23626LP->pinMask && (superGpio & mapSuper23626LP->pinMask);
+        bool super23626LKpressed = mapSuper23626LK->pinMask && (superGpio & mapSuper23626LK->pinMask);
         uint64_t nowUs = getMicro();
 
-        if (!superActive && !motionActive && !dirActive && !chargeActive) {
+        if (!superActive && !motionActive && !dirActive && !chargeActive && !luke5Blocking) {
             bool risingLP = superLPpressed && !prevSuperLP;
             bool risingLK = superLKpressed && !prevSuperLK;
             bool risingLPNew = superLPNewPressed && !prevSuperLPNew;
             bool risingLKNew = superLKNewPressed && !prevSuperLKNew;
-            if (risingLP || risingLK || risingLPNew || risingLKNew) {
-                bool isLP  = risingLP || risingLPNew;    // LP-family (else LK-family)
-                bool isNew = risingLPNew || risingLKNew; // the (NEW) flip variants
+            bool rising23626LP = super23626LPpressed && !prevSuper23626LP;
+            bool rising23626LK = super23626LKpressed && !prevSuper23626LK;
+            if (risingLP || risingLK || risingLPNew || risingLKNew || rising23626LP || rising23626LK) {
+                bool isLP  = risingLP || risingLPNew || rising23626LP;    // LP-family (else LK-family)
+                bool isNew = risingLPNew || risingLKNew || rising23626LP || rising23626LK; // (NEW) flip-ender variants
+                superNoReverse = rising23626LP || rising23626LK;          // (NEW) 23626: tail follows direction (no reverse)
                 superActive = true;
                 superStep = 0;
                 superStepStartTime = nowUs;
@@ -454,10 +491,12 @@ void ReverseInput::process()
                     if (superEnderMask) {                               // ANY attack -> divert
                         superTailType = 1;                              // +246 = 21346246
                         if (superDivertEnder) superEnderMask = superDivertEnder;   // (NEW) variants: flip to LP/LK; else keep the pressed attack(s) - clcy
-                    } else if (superDirLatch & GAMEPAD_MASK_LEFT) {     // held 4 -> +26 = 2134626
-                        superTailType = 2; superEnderMask = superEnderDefault;
-                    } else if (superDirLatch & GAMEPAD_MASK_RIGHT) {    // held 6 -> +24 = 2134624
-                        superTailType = 3; superEnderMask = superEnderDefault;
+                    } else if (superDirLatch & GAMEPAD_MASK_LEFT) {     // held 4
+                        superTailType = superNoReverse ? 3 : 2;        // no-reverse: 4 -> +24 (=2134624); reverse: 4 -> +26 (=2134626)
+                        superEnderMask = superEnderDefault;
+                    } else if (superDirLatch & GAMEPAD_MASK_RIGHT) {    // held 6
+                        superTailType = superNoReverse ? 2 : 3;        // no-reverse: 6 -> +26 (=2134626); reverse: 6 -> +24 (=2134624)
+                        superEnderMask = superEnderDefault;
                     } else {
                         superActive = false;                            // no attack, no direction -> stop after 21346
                     }
@@ -482,6 +521,8 @@ void ReverseInput::process()
         prevSuperLK = superLKpressed;
         prevSuperLPNew = superLPNewPressed;
         prevSuperLKNew = superLKNewPressed;
+        prevSuper23626LP = super23626LPpressed;
+        prevSuper23626LK = super23626LKpressed;
     }
 
     // ---- Hardcoded-motion buttons (236/214 QCR, 6214/4236 HCB, 623*, 21346*, 22*, 2HP) - clcy ----
@@ -495,7 +536,7 @@ void ReverseInput::process()
         Mask_t mGpio = gamepad->debouncedGpio;
         uint64_t nowUs = getMicro();
 
-        if (!motionActive && !superActive && !dirActive && !chargeActive) {
+        if (!motionActive && !superActive && !dirActive && !chargeActive && !luke5Blocking) {
             for (int i = 0; i < MOTION_COUNT; i++) {
                 bool pressed = motionPinMask[i] && (mGpio & motionPinMask[i]);
                 if (pressed && !motionPrev[i]) {
@@ -523,6 +564,8 @@ void ReverseInput::process()
             if (motionActive) {
                 gamepad->state.dpad = md.steps[motionStep].dpad;      // exclusive (fixed, no mirror); 5 = neutral = 0
                 gamepad->state.buttons &= ~superAttackMask;           // suppress held attacks during the motion
+                if (md.steps[motionStep].attack)                       // per-step attack (e.g. (Luke) 623 HP fires HP on the 2nd-to-last step too) - clcy
+                    gamepad->state.buttons |= md.steps[motionStep].attack;
                 if (motionStep == (md.count - 1)) {
                     // All "smart" enders read the attack you're HOLDING AT THIS LAST STEP only (fresh
                     // sample, like the QCRs) — a leftover/early press released by now never leaks. - clcy
@@ -545,6 +588,10 @@ void ReverseInput::process()
                                md.action == GpioAction::BUTTON_PRESS_BISON_5236_LK ||
                                md.action == GpioAction::BUTTON_PRESS_BISON_5214_LK) {
                         if (pressedNow) ender = pressedNow;             // 22 LP/HP/MP + 6214/4236 LP + Bison 5236/5214 LK: held attack(s) REPLACE the default; else default
+                    } else if (md.action == GpioAction::BUTTON_PRESS_623_LK ||
+                               md.action == GpioAction::BUTTON_PRESS_623_MK ||
+                               md.action == GpioAction::BUTTON_PRESS_623_HK) {
+                        ender = md.defaultEnder | pressedNow;           // 623 LK/MK/HK: held attack(s) ADD to the default (LK/MK/HK + whatever you press)
                     }
                     gamepad->state.buttons |= ender;
                 }
@@ -568,7 +615,7 @@ void ReverseInput::process()
         bool chgR = holdStartRight && (nowUs - holdStartRight) >= CHARGE_US;   // → charged >= CHARGE_FRAMES
         bool chgD = holdStartDown  && (nowUs - holdStartDown)  >= CHARGE_US;   // ↓ charged >= CHARGE_FRAMES
 
-        if (!dirActive && !motionActive && !superActive && !chargeActive) {
+        if (!dirActive && !motionActive && !superActive && !chargeActive && !luke5Blocking) {
             for (int i = 0; i < DIR_MOVE_COUNT; i++) {
                 bool pressed = dirPinMask[i] && (dGpio & dirPinMask[i]);
                 if (pressed && !dirPrev[i]) {
@@ -619,7 +666,11 @@ void ReverseInput::process()
                 if (s.flags & DSF_FWD_RAW) outDpad |= dirHeld;
                 gamepad->state.dpad = outDpad;                    // exclusive (mirror handled at press)
                 gamepad->state.buttons &= ~superAttackMask;       // suppress held attacks during the move
-                if (s.attack) gamepad->state.buttons |= (dirAddedAttack ? dirAddedAttack : s.attack);   // held attack(s) REPLACE the base; else base
+                if (s.attack) {
+                    uint16_t atk = dm.addToBase ? (s.attack | dirAddedAttack)            // ADD: base + held attack(s), together (Bison 46 LP)
+                                                : (dirAddedAttack ? dirAddedAttack : s.attack);  // REPLACE: held attack(s) replace the base; else base
+                    gamepad->state.buttons |= atk;
+                }
             }
         }
 
@@ -637,7 +688,7 @@ void ReverseInput::process()
         bool chargePressed = mapChargeHP->pinMask && (cGpio & mapChargeHP->pinMask);
         uint64_t nowUs = getMicro();
 
-        if (!chargeActive && !motionActive && !superActive && !dirActive) {
+        if (!chargeActive && !motionActive && !superActive && !dirActive && !luke5Blocking) {
             if (chargePressed && !chargePrev) {
                 chargeActive = true;
                 chargeHold = false;
@@ -673,6 +724,50 @@ void ReverseInput::process()
         }
 
         chargePrev = chargePressed;
+    }
+
+    // ---- (Luke) 5 HP event sequence: HP(3f) -> neutral wait(21f) -> neutral MK+MP(3f) - clcy ----
+    // Press -> force neutral + HP for 3f; then 21f of NEUTRAL where the player's own input passes through
+    // (we don't touch the gamepad), watching for any attack; then, ONLY if no attack was pressed during the
+    // wait, force neutral + MK+MP for 3f. Any attack during the wait cancels the MK+MP tail. Time-based
+    // (plays out from the press, not hold-based). Mutually exclusive with the other engines.
+    {
+        Mask_t lGpio = gamepad->debouncedGpio;
+        bool luke5Pressed = mapLuke5HP->pinMask && (lGpio & mapLuke5HP->pinMask);
+        uint64_t nowUs = getMicro();
+
+        if (!luke5Active && !motionActive && !superActive && !dirActive && !chargeActive) {
+            if (luke5Pressed && !prevLuke5) {
+                luke5Active = true;
+                luke5Phase = 0;
+                luke5PhaseStart = nowUs;
+                luke5CancelTail = false;
+            }
+        }
+
+        if (luke5Active) {
+            uint64_t elapsed = nowUs - luke5PhaseStart;
+            if (luke5Phase == 0) {                              // HP, 3f (forced neutral)
+                gamepad->state.dpad = 0;
+                gamepad->state.buttons &= ~superAttackMask;
+                gamepad->state.buttons |= A_HP;
+                if (elapsed >= (uint64_t)LUKE5_HP_FRAMES * SUPER_FRAME_US) { luke5Phase = 1; luke5PhaseStart = nowUs; }
+            } else if (luke5Phase == 1) {                       // wait, 21f: pass the player's input through; watch for attacks / our moves
+                if ((rawButtons & superAttackMask) || motionActive || superActive || dirActive || chargeActive)
+                    luke5CancelTail = true;   // a physical attack OR one of our moves (5214 QCR etc.) during the wait -> cancel the tail
+                if (elapsed >= (uint64_t)LUKE5_WAIT_FRAMES * SUPER_FRAME_US) {
+                    if (luke5CancelTail) luke5Active = false;               // attack/move during the wait -> no MK+MP tail
+                    else { luke5Phase = 2; luke5PhaseStart = nowUs; }
+                }
+            } else {                                            // MK+MP tail, 3f (forced neutral)
+                gamepad->state.dpad = 0;
+                gamepad->state.buttons &= ~superAttackMask;
+                gamepad->state.buttons |= (A_MK | A_MP);
+                if (elapsed >= (uint64_t)LUKE5_TAIL_FRAMES * SUPER_FRAME_US) luke5Active = false;
+            }
+        }
+
+        prevLuke5 = luke5Pressed;
     }
 
     if (pinLED != 0xff) {
